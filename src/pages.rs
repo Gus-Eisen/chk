@@ -1,14 +1,16 @@
-use pelican_ui::{Context, Component};
-use pelican_ui::drawable::{Drawable, Align};
-use pelican_ui::layouts::{Offset, Stack};
-use pelican_ui::events::{OnEvent, Event};
+use ramp::prism;
+use pelican_ui::{Context};
+use pelican_ui::event::{Event, OnEvent, TickEvent};
+use pelican_ui::canvas::Align;
+use pelican_ui::layout::{Offset, Stack};
+use pelican_ui::drawable::{Drawable, Component, SizedTree};
 use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
-use pelican_ui::components::interface::navigation::AppPage as PelicanAppPage;
-use pelican_ui::components::interface::general::{Header, Bumper as PelicanBumper, Content, Page as PelicanPage};
-use pelican_ui::utils::Callback;
+use pelican_ui::components::interface::AppPage as PelicanAppPage;
+use pelican_ui::components::interface::{Header, Bumper as PelicanBumper, Content, Page as PelicanPage};
+use pelican_ui::utils::{Callback, ValidationFn};
 use pelican_ui::components::text::{TextStyle, TextSize};
 
-use crate::{Action, Input, Display, FnMutClone, NavFn, ValidityFn};
+use crate::{Action, Input, Display, FnMutClone, NavFn, ValidityFn, EditedFn};
 use crate::flow::Flow;
 #[derive(Clone)]
 pub enum PageType {
@@ -37,7 +39,7 @@ impl PageType {
     }
 
     pub fn review(title: &str, items: Vec<Display>) -> Self {
-        PageType::Display { title: title.to_string(), items, branch: None, bumper: Bumper::default(), offset: Offset::Start, flow_length: 1, next: None}
+        PageType::Display { title: title.to_string(), items, branch: None, bumper: Bumper::default(None), offset: Offset::Start, flow_length: 1, next: None}
     }
 
     pub fn input(title: &str, items: Input, bumper: Bumper) -> Self {
@@ -48,9 +50,9 @@ impl PageType {
         PageType::Display { title: title.to_string(), items, branch, bumper, offset, flow_length: 1, next: None}
     }
 
-    pub fn settings(title: &str, avatar: AvatarContent, text_fields: Vec<(String, String, Box<dyn ValidityFn>)>, bumper: Bumper) -> Self {
+    pub fn settings(title: &str, avatar: AvatarContent, text_fields: Vec<(String, String, Box<dyn EditedFn>)>, bumper: Bumper) -> Self {
         let mut items = vec![Input::avatar(avatar, Some(("edit".to_string(), AvatarIconStyle::Secondary)), Some(Action::SelectImage))];
-        text_fields.into_iter().for_each(|(i, t, c)| items.push(Input::text(&i, None, &t, c)));
+        text_fields.into_iter().for_each(|(i, t, c)| items.push(Input::text(&i, true, None, c)));
         
         PageType::Settings { 
             title: title.to_string(), 
@@ -91,17 +93,14 @@ impl BuildablePage for PageType {
         let flow_len = *self.flow_length();
         let next = self.get_nav().clone();
 
-        let (offset, content, header_icon, validity_fn) = match self {
-            PageType::Display {items, offset, branch, ..} => (*offset, items.iter_mut().filter_map(|di| di.build(ctx)).flatten().collect::<Vec<Box<dyn Drawable>>>(), branch.take(), None),
-            PageType::Input {items, ..} => (Offset::Start, items.build(ctx).unwrap_or_default(), None, items.check()),
+        let (offset, content, header_icon) = match self {
+            PageType::Display {items, offset, branch, ..} => (*offset, items.iter_mut().filter_map(|di| di.build(ctx)).flatten().collect::<Vec<Box<dyn Drawable>>>(), branch.take()),
+            PageType::Input {items, ..} => (Offset::Start, items.build(ctx).unwrap_or_default(), None),
             PageType::Settings {items, ..} => {
-                let checks = items.iter_mut().filter_map(|item| item.check()).collect::<Vec<_>>();
-                let check = Box::new(move |ctx: &mut Context| checks.clone().iter_mut().all(|check| (check)(ctx))) as Box<dyn ValidityFn>;
-                (Offset::Start, items.iter_mut().filter_map(|di| di.build(ctx)).flatten().collect::<Vec<Box<dyn Drawable>>>(), None, Some(check))
+                (Offset::Start, items.iter_mut().filter_map(|di| di.build(ctx)).flatten().collect::<Vec<Box<dyn Drawable>>>(), None)
             }
         };
 
-        let validity_fn = validity_fn.map(|mut vfn| Box::new(move |ctx: &mut Context| (vfn)(ctx)) as Box<dyn FnMut(&mut Context) -> bool + 'static>);
 
         let bumper = match self {
             PageType::Display {bumper, ..} => bumper,
@@ -109,21 +108,25 @@ impl BuildablePage for PageType {
             PageType::Settings {bumper, ..} => bumper,
         };
 
+
+
         let icon = header_icon.map(|(i, mut f)| (i.to_string(), f.build()));
 
         let (header, bumper) = match bumper {
-            Bumper::Custom {label, action, secondary} => {
+            Bumper::Custom {label, action, secondary, is_valid} => {
                 let on_click = action.clone();
                 let secondary = secondary.clone().map(|(l, a)| (l, Box::new(move |ctx: &mut Context| (a.clone().get())(ctx)) as Callback));
                 let action = Box::new(move |ctx: &mut Context| (on_click.clone().get())(ctx));
-                let bumper = PelicanBumper::stack(ctx, Some(label), false, action, secondary, validity_fn);
+                let validity_fn = is_valid.clone().map(|mut vfn| Box::new(move |ctx: &mut Context| (vfn)(ctx)) as Box<dyn ValidationFn>);
+                let bumper = PelicanBumper::stack(ctx, Some(label), action, secondary, validity_fn);
                 let header = Header::stack(ctx, &self.name(), icon);
                 (header, Some(bumper))
             },
-            Bumper::Default => match next {
+            Bumper::Default {is_valid} => match next {
                 Some(n) => {
+                    let validity_fn = is_valid.clone().map(|mut vfn| Box::new(move |ctx: &mut Context| (vfn)(ctx)) as Box<dyn ValidationFn>);
                     let next = n.clone();
-                    let bumper = PelicanBumper::stack(ctx, None, false, Box::new(move |ctx: &mut Context| (next.borrow_mut())(ctx)), None, validity_fn);
+                    let bumper = PelicanBumper::stack(ctx, None, Box::new(move |ctx: &mut Context| (next.borrow_mut())(ctx)), None, validity_fn);
                     let header = Header::stack(ctx, &self.name(), icon);
                     (header, Some(bumper))
                 }
@@ -133,7 +136,7 @@ impl BuildablePage for PageType {
             Bumper::None => (Header::stack(ctx, &self.name(), icon), None)
         };
 
-        AppPage::new(header, Content::new(ctx, offset, content), bumper, self.clone())
+        AppPage::new(header, Content::new(offset, content), bumper, self.clone())
     }
 }
 
@@ -179,14 +182,20 @@ impl BuildablePage for RootPage {
             _ => Offset::Start,
         };
 
-        AppPage::new(header, Content::new(ctx, offset, content), Some(bumper), self.clone())
+        AppPage::new(header, Content::new(offset, content), Some(bumper), self.clone())
     }
 }
 
 #[derive(Component, Debug)]
 pub struct AppPage(Stack, pub PelicanPage, #[skip] Box<dyn BuildablePage>);
 impl OnEvent for AppPage {
-    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        // if event.downcast_ref::<TickEvent>().is_some() {
+        //     let new = self.2.build(ctx);
+        //     if self.1 != new {
+        //         self.1 = new;
+        //     }
+        // }
         // if event.downcast_ref::<StateChangedEvent>().is_some() {
         //     *self = self.2.build(ctx);
         // }
@@ -217,21 +226,24 @@ impl RootBumper {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub enum Bumper {
-    #[default]
-    Default,
-    Custom { label: String, action: Action, secondary: Option<(String, Action)> },
+    Default { is_valid: Option<Box<dyn ValidityFn>> },
+    Custom { label: String, action: Action, secondary: Option<(String, Action)>, is_valid: Option<Box<dyn ValidityFn>>},
     Done,
     None,
 }
 
 impl Bumper {
-    pub fn custom(label: &str, action: Action) -> Self {
-        Bumper::Custom {label: label.to_string(), action, secondary: None}
+    pub fn custom(label: &str, action: Action, is_valid: Option<Box<dyn ValidityFn>>) -> Self {
+        Bumper::Custom {label: label.to_string(), action, secondary: None, is_valid}
     }
 
-    pub fn double(l1: &str, a1: Action, l2: &str, a2: Action) -> Self {
-        Bumper::Custom {label: l1.to_string(), action: a1, secondary: Some((l2.to_string(), a2))}
+    pub fn double(l1: &str, a1: Action, l2: &str, a2: Action, is_valid: Option<Box<dyn ValidityFn>>) -> Self {
+        Bumper::Custom {label: l1.to_string(), action: a1, secondary: Some((l2.to_string(), a2)), is_valid}
+    }
+
+    pub fn default(is_valid: Option<Box<dyn ValidityFn>>) -> Self {
+        Bumper::Default {is_valid}
     }
 }

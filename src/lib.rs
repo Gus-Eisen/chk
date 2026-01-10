@@ -3,7 +3,7 @@
 mod structs;
 use structs::*;
 mod state;
-pub mod examples;
+// pub mod examples;
 mod flow;
 pub use flow::{PageBuilder};
 mod pages;
@@ -32,18 +32,16 @@ pub use chk::pages::{
 };
 
 pub use pelican_ui::{
-    include_dir,
-    Assets,
     Context,
-    State,
-    drawable::Color,
-    layouts::Offset,
-    events::{Event, TickEvent},
+    theme::{Theme as PelicanTheme, Color},
+    components::TextInputEvent,
     components::avatar::{AvatarContent, AvatarIconStyle},
-    components::interface::general::Interface,
+    components::interface::{RootInfo, Interface, AppPage as PelicanAppPage},
     components::list_item::ListItemSection,
-    utils::Timestamp
+    utils::Timestamp,
 };
+
+pub use ramp::prism::{State, layout::Offset, event::*};
 
 pub enum Theme {
     Dark(Color),
@@ -51,62 +49,54 @@ pub enum Theme {
     Auto(Color),
 }
 
-pub trait Application {
-    fn start(ctx: &mut Context) -> Vec<Root>;
-    fn theme(_assets: &mut Assets) -> Theme { Theme::Dark(Color::from_hex("#ffdd00ff", 255)) }
-    fn on_event(_ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {vec![event]}
+impl Default for Theme {
+    fn default() -> Self {Theme::Dark(Color::from_hex("#ffdd00", 255))}
 }
 
-extern crate self as chk;
+pub trait Application {
+    fn roots(ctx: &mut Context) -> Vec<Root>;
+    fn theme() -> Theme { Theme::default() }
+    fn on_event() -> Box<dyn FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>> {
+        Box::new(|_, e: Box<dyn Event>| vec![e])
+    }
 
-#[doc(hidden)]
-pub mod __private {
-    pub use chk::{Theme, Application, structs::RootContent};
-    pub use pelican_ui::start as pelican_start;
+    fn build(&self, ctx: &mut Context) -> Interface {
+        let roots = Self::roots(ctx);
+        ctx.state.insert(match Self::theme() {
+            Theme::Dark(c) => PelicanTheme::dark(c),
+            Theme::Light(c) => PelicanTheme::light(c),
+            Theme::Auto(c) => PelicanTheme::from(c),
+        });
 
-    use pelican_ui::{Context, Assets};
-    use pelican_ui::events::Event;
-    use pelican_ui::theme::Theme as PelicanTheme;
-    use pelican_ui::components::interface::navigation::AppPage as PelicanAppPage;
-    use pelican_ui::components::interface::general::Interface;
-    use pelican_ui::components::interface::navigation::RootInfo;
-
-    use crate::pages::BuildablePage;
-
-    pub struct CHK<A: Application>(A);
-
-    impl<A: Application> pelican_ui::Application for CHK<A> {
-        fn interface(ctx: &mut Context) -> Interface {
-            let roots: Vec<RootInfo> = A::start(ctx).into_iter().map(|mut r| {
-                let title = r.page.title.clone();
-                match r.content {
-                    RootContent::Avatar(content) => RootInfo::avatar(content, &title, Box::new(r.page.build(ctx)) as Box<dyn PelicanAppPage>),
-                    RootContent::Icon(icon) => RootInfo::icon(&icon, &title, Box::new(r.page.build(ctx)) as Box<dyn PelicanAppPage>),
-                }
-            }).collect();
-
-            Interface::new(ctx, roots)
-        }
-
-        fn theme(assets: &mut Assets) -> PelicanTheme {
-            match A::theme(assets) {
-                Theme::Dark(c) => PelicanTheme::dark(assets, c),
-                Theme::Light(c) => PelicanTheme::light(assets, c),
-                Theme::Auto(c) => PelicanTheme::from(assets, c),
+        let roots: Vec<RootInfo> = roots.into_iter().map(|mut r| {
+            let title = r.page.title.clone();
+            match r.content {
+                RootContent::Avatar(content) => RootInfo::avatar(content, &title, Box::new(r.page.build(ctx)) as Box<dyn PelicanAppPage>),
+                RootContent::Icon(icon) => RootInfo::icon(&icon, &title, Box::new(r.page.build(ctx)) as Box<dyn PelicanAppPage>),
             }
-        }
+        }).collect();
 
-        fn on_event(_interface: &mut Interface, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-            A::on_event(ctx, event)
-        }
+        Interface::new(ctx, roots, Self::on_event())
     }
 }
 
-#[macro_export]
-macro_rules! start {
-    ($app:ty) => {
-        pub(crate) use $crate::__private::*;
 
-        pelican_start!(CHK<$app>);
+#[doc(hidden)]
+pub mod __private {
+    pub use ramp;
+    pub use ramp::prism;
+}
+
+
+#[macro_export]
+macro_rules! run {
+    ($app:expr) => {
+        pub use $crate::__private::*;
+        ramp::run!(|ctx: &mut Context| {
+            let app = $app;
+            app.build(ctx)
+        });
     };
 }
+
+extern crate self as chk;

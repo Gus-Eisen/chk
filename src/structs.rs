@@ -1,11 +1,12 @@
 use pelican_ui::{drawables, Context};
-use pelican_ui::drawable::{Drawable, Align};
+use pelican_ui::drawable::Drawable;
+use pelican_ui::canvas::Align;
+use pelican_ui::theme::Theme;
 use pelican_ui::utils::{Callback, TitleSubtitle};
 use pelican_ui::components::list_item::{ListItemSection, ListItemInfoLeft, ListItem as PelicanListItem};
 use pelican_ui::components::{Checkbox, CheckboxList, TextInput, RadioSelector, Icon, DataItem, QRCode, NumericalInput};
 use pelican_ui::components::text::{ExpandableText, TextStyle, TextSize};
 use pelican_ui::components::avatar::{Avatar, AvatarSize, AvatarContent, AvatarIconStyle};
-use pelican_ui::plugin::PelicanUI;
 
 use crate::pages::RootPage;
 use crate::flow::Flow;
@@ -15,34 +16,34 @@ use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Input {
-    Text {label: String, actions: Option<Vec<Action>>, tag: String, check: Box<dyn ValidityFn>},
-    Currency {instructions: String, tag: String, check: Box<dyn ValidityFn>},
-    Date {instructions: String, tag: String, check: Box<dyn ValidityFn>},
-    Time {instructions: String, tag: String, check: Box<dyn ValidityFn>},
-    Enumerator {items: Vec<EnumItem>, tag: String},
+    Text {label: String, actions: Option<Vec<Action>>, show_label: bool, on_edited: Box<dyn EditedFn>},
+    Currency {instructions: String, on_edited: Box<dyn EditedFn>},
+    Date {instructions: String, on_edited: Box<dyn EditedFn>},
+    Time {instructions: String, on_edited: Box<dyn EditedFn>},
+    Enumerator {items: Vec<EnumItem>},
     Avatar {content: AvatarContent, flair: Option<(String, AvatarIconStyle)>, action: Option<Action>},
     Boolean {items: Vec<ChecklistItem>}
 }
 
 impl Input {
-    pub fn currency(instructions: &str, tag: &str, check: impl FnMut(&mut Context) -> bool + Clone + 'static) -> Self {
-        Input::Currency {instructions: instructions.to_string(), tag: tag.to_string(), check: Box::new(check)}
+    pub fn currency(instructions: &str, on_edited: impl FnMut(&mut Context, &mut String) + Clone + 'static) -> Self {
+        Input::Currency {instructions: instructions.to_string(), on_edited: Box::new(on_edited)}
     }
 
-    pub fn date(instructions: &str, tag: &str, check: impl FnMut(&mut Context) -> bool + Clone + 'static) -> Self {
-        Input::Date {instructions: instructions.to_string(), tag: tag.to_string(), check: Box::new(check)}
+    pub fn date(instructions: &str, on_edited: impl FnMut(&mut Context, &mut String) + Clone + 'static) -> Self {
+        Input::Date {instructions: instructions.to_string(), on_edited: Box::new(on_edited)}
     }
 
-    pub fn time(instructions: &str, tag: &str, check: impl FnMut(&mut Context) -> bool + Clone + 'static) -> Self {
-        Input::Time {instructions: instructions.to_string(), tag: tag.to_string(), check: Box::new(check)}
+    pub fn time(instructions: &str, on_edited: impl FnMut(&mut Context, &mut String) + Clone + 'static) -> Self {
+        Input::Time {instructions: instructions.to_string(), on_edited: Box::new(on_edited)}
     }
 
-    pub fn enumerator(items: Vec<EnumItem>, tag: &str) -> Self {
-        Input::Enumerator {items, tag: tag.to_string()}
+    pub fn enumerator(items: Vec<EnumItem>) -> Self {
+        Input::Enumerator {items}
     }
 
-    pub fn text(label: &str, actions: Option<Vec<Action>>, tag: &str, check: impl FnMut(&mut Context) -> bool + Clone + 'static) -> Self {
-        Input::Text {label: label.to_string(), actions, tag: tag.to_string(), check: Box::new(check)}
+    pub fn text(label: &str, show_label: bool, actions: Option<Vec<Action>>, on_edited: impl FnMut(&mut Context, &mut String) + Clone + 'static) -> Self {
+        Input::Text {label: label.to_string(), show_label, actions, on_edited: Box::new(on_edited)}
     }
 
     pub fn avatar(content: AvatarContent, flair: Option<(String, AvatarIconStyle)>, action: Option<Action>) -> Self {
@@ -55,22 +56,14 @@ impl Input {
 
     pub fn build(&self, ctx: &mut Context) -> Option<Vec<Box<dyn Drawable>>> {
         Some(match self {
-            Input::Text {label, tag, ..} => drawables![TextInput::new(ctx, None, (label, false), Some(&format!("Enter {}...", label.to_lowercase())), None, None, tag)],
-            Input::Enumerator {items, tag} => drawables![RadioSelector::new(ctx, 0, tag, items.iter().map(|item| item.get()).collect::<Vec<_>>())],
-            Input::Currency {instructions, tag, ..} => drawables![NumericalInput::currency(ctx, instructions, tag)],
-            Input::Date {instructions, tag, ..} => drawables![NumericalInput::date(ctx, instructions, tag)],
-            Input::Time {instructions, tag, ..} => drawables![NumericalInput::time(ctx, instructions, tag)],
+            Input::Text {show_label, label, on_edited, ..} => drawables![TextInput::new(ctx, None, show_label.then_some(label), Some(&format!("Enter {}...", label.to_lowercase())), None, None, on_edited.get())],
+            Input::Enumerator {items} => drawables![RadioSelector::new(ctx, 0, items.iter().map(|item| item.get()).collect::<Vec<_>>())],
+            Input::Currency {instructions, on_edited} => drawables![NumericalInput::currency(ctx, instructions, on_edited.get())],
+            Input::Date {instructions, on_edited} => drawables![NumericalInput::date(ctx, instructions, on_edited.get())],
+            Input::Time {instructions, on_edited} => drawables![NumericalInput::time(ctx, instructions, on_edited.get())],
             Input::Avatar {content, flair, action} => drawables![Avatar::new(ctx, content.clone(), flair.clone(), flair.is_some(), AvatarSize::Xxl, action.as_ref().map(|a| a.get()))],
             Input::Boolean {items} => drawables![CheckboxList::new(items.iter().map(|item| item.get(ctx)).collect::<Vec<_>>())]
         })
-    }
-
-    pub fn check(&mut self) -> Option<Box<dyn ValidityFn>> {
-        match self {
-            Input::Text {check, ..} => Some(check.clone()),
-            Input::Currency {check, ..} => Some(check.clone()),
-            _ => None
-        }
     }
 }
 
@@ -126,7 +119,7 @@ impl Display {
     pub fn build(&mut self, ctx: &mut Context) -> Option<Vec<Box<dyn Drawable>>> {
         Some(match self {
             Display::Icon {icon} => {
-                let color = ctx.get::<PelicanUI>().get().0.theme().colors.text.heading;
+                let color = ctx.state.get_or_default::<Theme>().colors.text.heading;
                 drawables![Icon::new(ctx, icon, Some(color), 128.0)]
             }
             Display::Text {text, size, style, align} => drawables![ExpandableText::new(ctx, text, *size, *style, *align, None)],
@@ -247,15 +240,21 @@ impl TableItem {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct EnumItem {title: String, data: String}
+#[derive(Clone)]
+pub struct EnumItem {title: String, data: String, callback: Box<dyn FnMutClone>}
+impl std::fmt::Debug for EnumItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EnumItem").field("title", &self.title).field("data", &self.data).finish()
+    }
+}
 impl EnumItem {
-    pub fn new(title: &str, data: &str) -> Self {
-        EnumItem {title: title.to_string(), data: data.to_string()}
+    pub fn new(title: &str, data: &str, callback: impl FnMut(&mut Context) + Clone + 'static) -> Self {
+        EnumItem {title: title.to_string(), data: data.to_string(), callback: Box::new(callback)}
     }
 
     fn get(&self) -> (&str, &str, Callback) {
-        (&self.title as &str, &self.data as &str, Box::new(|_ctx: &mut Context| {}) as Box<dyn FnMut(&mut Context)>)
+        let mut callback = self.callback.clone();
+        (&self.title as &str, &self.data as &str, Box::new(move |ctx: &mut Context| {(callback)(ctx)}) as Box<dyn FnMut(&mut Context)>)
     }
 }
 
@@ -346,3 +345,38 @@ impl std::fmt::Debug for dyn ValidityFn {
         write!(f, "Valitidy check...")
     }
 }
+
+pub trait EditedFn: FnMut(&mut Context, &mut String) + 'static {
+    fn clone_box(&self) -> Box<dyn EditedFn>;
+
+    fn get(&self) -> Box<dyn FnMut(&mut Context, &mut String)> {
+        let mut closure = self.clone_box();
+        Box::new(move |ctx: &mut Context, val: &mut String| (closure)(ctx, val))
+    }
+}
+
+impl<F> EditedFn for F where F: FnMut(&mut Context, &mut String) + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn EditedFn> { Box::new(self.clone()) }
+}
+
+impl Clone for Box<dyn EditedFn> { fn clone(&self) -> Self { self.as_ref().clone_box() } }
+
+impl std::fmt::Debug for dyn EditedFn { fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "EditedFn") } }
+
+
+// pub trait EnumeratorFn: FnMut(&mut Context, String) + 'static {
+//     fn clone_box(&self) -> Box<dyn EnumeratorFn>;
+
+//     fn get(&self) -> Box<dyn FnMut(&mut Context, String)> {
+//         let mut closure = self.clone_box();
+//         Box::new(move |ctx: &mut Context, val: String| (closure)(ctx, val))
+//     }
+// }
+
+// impl<F> EnumeratorFn for F where F: FnMut(&mut Context, String) + Clone + 'static {
+//     fn clone_box(&self) -> Box<dyn EnumeratorFn> { Box::new(self.clone()) }
+// }
+
+// impl Clone for Box<dyn EnumeratorFn> { fn clone(&self) -> Self { self.as_ref().clone_box() } }
+
+// impl std::fmt::Debug for dyn EnumeratorFn { fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "EnumeratorFn") } }

@@ -1,6 +1,6 @@
-use pelican_ui::{State, Context};
+use pelican_ui::{State, Context, Request};
 use pelican_ui::utils::Callback;
-use pelican_ui::components::interface::navigation::NavigationEvent;
+use pelican_ui::components::interface::NavigationEvent;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -40,20 +40,20 @@ impl Flow {
             let mut page = page;
             next_fn = Some(Rc::new(RefCell::new(move |ctx: &mut Context| {
                 if let Some(cb) = callback.clone() { (cb.clone())(ctx) }
-                let mut x = (page)(ctx.state());
+                let mut x = (page)(&mut ctx.state);
                 *x.flow_length() = length;
                 *x.get_nav() = next.clone();
                 let page_box = x.build(ctx);
-                ctx.trigger_event(NavigationEvent::Push(Some(Box::new(page_box))));
+                ctx.send(Request::event(NavigationEvent::Push(Some(Box::new(page_box)))));
             })));
         }
 
         Box::new(move |ctx: &mut Context| {
-            let mut x = (first)(ctx.state());
+            let mut x = (first)(&mut ctx.state);
             *x.flow_length() = length;
             *x.get_nav() = next_fn.clone();
             let page_box = x.build(ctx);
-            ctx.trigger_event(NavigationEvent::Push(Some(Box::new(page_box))));
+            ctx.send(Request::event(NavigationEvent::Push(Some(Box::new(page_box)))));
         })
     }
 }
