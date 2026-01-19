@@ -1,81 +1,65 @@
-use pelican_ui::{State, Context, Request};
-use pelican_ui::utils::Callback;
+use pelican_ui::{Context, Request};
 use pelican_ui::components::interface::NavigationEvent;
+use pelican_ui::utils::Callback;
 
-use std::cell::RefCell;
+use crate::page::{Review, SuccessPage, Success, ReviewPage, Page};
+use crate::closure::{NavFn, FnMutClone, ScreenBuilder};
+use crate::page::Screen;
+
 use std::rc::Rc;
+use std::cell::RefCell;
 
-use crate::{NavFn};
-use crate::pages::{PageType, BuildablePage};
-use crate::FnMutClone;
-
-#[derive(Debug, Clone, Default)]
-pub struct Flow { 
-    pages: Vec<Box<dyn PageBuilder>>,
-    on_submit: Option<Box<dyn FnMutClone>>
+pub trait Form {
+    fn inputs(&self) -> Vec<Box<dyn Page>>;
+    fn review(&self) -> Option<Box<dyn ReviewPage>> {None}
+    fn success(&self) -> Box<dyn SuccessPage>;
+    fn on_submit(&self, ctx: &mut Context);
 }
 
-impl Flow {
-    pub fn new(pages: Vec<Box<dyn PageBuilder>>) -> Self {
-        Flow { pages, on_submit: None }
+#[derive(Debug, Clone, Default)]
+pub struct Flow(Vec<Box<dyn ScreenBuilder>>, Option<Box<dyn FnMutClone>>);
+impl PartialEq for Flow {
+    fn eq(&self, other: &Self) -> bool {self.0.len() == other.0.len()}
+}
+impl Flow{
+    pub fn new(pages: Vec<Box<dyn ScreenBuilder>>) -> Self {
+        Flow(pages, None)
     }
 
-    pub fn form(mut inputs: Vec<Box<dyn PageBuilder>>, review: Option<Box<dyn PageBuilder>>, success: Box<dyn PageBuilder>, on_submit: impl FnMut(&mut Context) + Clone + 'static) -> Self {
-        if let Some(r) = review { inputs.push(r); }
-        inputs.push(success);
-        Flow { pages: inputs, on_submit: Some(Box::new(on_submit))}
+    pub fn from_form(form: impl Form + 'static + Clone) -> Self {
+        let mut pages: Vec<Box<dyn ScreenBuilder>> = vec![];
+        form.inputs().into_iter().for_each(|p| pages.push(Screen::new_builder(p)));
+        if let Some(r) = form.review() {pages.push(Screen::new_builder(Review(r)));}
+        pages.push(Screen::new_builder(Success(form.success())));
+        let on_submit: Box<dyn FnMutClone> = Box::new(move |ctx: &mut Context| form.on_submit(ctx));
+        Flow(pages, Some(on_submit))
     }
- 
+    
     pub(crate) fn build(&mut self) -> Callback {
-        let length = self.pages.len();
-        if self.pages.is_empty() { return Box::new(|_ctx| {}); }
+        let length = self.0.len();
+        if self.0.is_empty() { return Box::new(|_ctx| {}); }
 
-        let mut pages = self.pages.clone();
+        let mut pages = self.0.clone();
         let mut first = pages.remove(0);
         let mut next_fn: Option<NavFn> = None;
 
         for (i, page) in pages.into_iter().rev().enumerate() {
-            let callback = (i == 0).then_some(self.on_submit.clone()).flatten(); 
+            let callback = (i == 0).then_some(self.1.clone()).flatten(); 
             let next = next_fn.take();
             let mut page = page;
-            next_fn = Some(Rc::new(RefCell::new(move |ctx: &mut Context| {
+            next_fn = Some(NavFn(Rc::new(RefCell::new(move |ctx: &mut Context| {
                 if let Some(cb) = callback.clone() { (cb.clone())(ctx) }
-                let mut x = (page)(&mut ctx.state);
-                *x.flow_length() = length;
-                *x.get_nav() = next.clone();
-                let page_box = x.build(ctx);
-                ctx.send(Request::event(NavigationEvent::Push(Some(Box::new(page_box)))));
-            })));
+                let mut page: Screen = (page)(ctx);
+                page.update(ctx, length, next.clone());
+                ctx.send(Request::event(NavigationEvent::push(page)));
+            }))));
         }
 
         Box::new(move |ctx: &mut Context| {
-            let mut x = (first)(&mut ctx.state);
-            *x.flow_length() = length;
-            *x.get_nav() = next_fn.clone();
-            let page_box = x.build(ctx);
-            ctx.send(Request::event(NavigationEvent::Push(Some(Box::new(page_box)))));
+            let mut page = (first)(ctx);
+            page.update(ctx, length, next_fn.clone());
+            ctx.send(Request::event(NavigationEvent::push(page)));
         })
     }
 }
 
-pub trait PageBuilder: FnMut(&mut State) -> PageType + 'static {
-    fn clone_box(&self) -> Box<dyn PageBuilder>;
-}
-
-impl<F> PageBuilder for F where F: FnMut(&mut State) -> PageType + Clone + 'static {
-    fn clone_box(&self) -> Box<dyn PageBuilder> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn PageBuilder> {
-    fn clone(&self) -> Self {
-        self.as_ref().clone_box()
-    }
-}
-
-impl std::fmt::Debug for dyn PageBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Page Builder...")
-    }
-}

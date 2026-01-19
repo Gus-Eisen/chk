@@ -884,6 +884,8 @@ name = "demo"
 version = "0.1.0"
 dependencies = [
  "chk",
+ "image 0.25.9",
+ "ramp2",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 use pelican_ui::{drawables, Context};
 use pelican_ui::drawable::Drawable;
-use pelican_ui::canvas::Align;
+use pelican_ui::canvas::{Align, RgbaImage, ShapeType, Image};
 use pelican_ui::theme::Theme;
 use pelican_ui::utils::{Callback, TitleSubtitle};
 use pelican_ui::components::list_item::{ListItemSection, ListItemInfoLeft, ListItem as PelicanListItem};
@@ -8,13 +8,12 @@ use pelican_ui::components::{Checkbox, CheckboxList, TextInput, RadioSelector, I
 use pelican_ui::components::text::{ExpandableText, TextStyle, TextSize};
 use pelican_ui::components::avatar::{Avatar, AvatarSize, AvatarContent, AvatarIconStyle};
 
-use crate::pages::RootPage;
+use std::sync::Arc;
+
 use crate::flow::Flow;
+use crate::closure::{FnMutClone, EditedFn};
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Input {
     Text {label: String, actions: Option<Vec<Action>>, show_label: bool, on_edited: Box<dyn EditedFn>},
     Currency {instructions: String, on_edited: Box<dyn EditedFn>},
@@ -62,7 +61,7 @@ impl Input {
             Input::Date {instructions, on_edited} => drawables![NumericalInput::date(ctx, instructions, on_edited.get())],
             Input::Time {instructions, on_edited} => drawables![NumericalInput::time(ctx, instructions, on_edited.get())],
             Input::Avatar {content, flair, action} => drawables![Avatar::new(ctx, content.clone(), flair.clone(), flair.is_some(), AvatarSize::Xxl, action.as_ref().map(|a| a.get()))],
-            Input::Boolean {items} => drawables![CheckboxList::new(items.iter().map(|item| item.get(ctx)).collect::<Vec<_>>())]
+            Input::Boolean {items} => drawables![CheckboxList::new(items.iter().map(|item| item.clone().get(ctx)).collect::<Vec<_>>())]
         })
     }
 }
@@ -71,10 +70,11 @@ impl Input {
 pub enum Display {
     Text {text: String, size: TextSize, style: TextStyle, align: Align},
     Icon {icon: String},
+    Image {image: Arc<RgbaImage>, size: (f32, f32)},
     Review {label: String, data: String, instructions: String},
     Table {label: String, items: Vec<TableItem>},
     Currency {amount: f32, instructions: String},
-    List {label: Option<String>, items: Vec<ListItem>, flow: Option<Flow>, instructions: Option<String>},
+    List {label: Option<String>, items: Vec<ListItem>, instructions: Option<String>,}, // flow: Option<Flow>},
     QRCode {data: String, instructions: String},
     Avatar {content: AvatarContent}
 }
@@ -92,6 +92,10 @@ impl Display {
         Display::Icon {icon: icon.to_string()}
     }
 
+    pub fn image(image: Arc<RgbaImage>, size: (f32, f32)) -> Self {
+        Display::Image {image, size}
+    }
+
     pub fn review(label: &str, data: &str, instructions: &str) -> Self {
         Display::Review {label: label.to_string(), data: data.to_string(), instructions: instructions.to_string()}
     }
@@ -104,8 +108,8 @@ impl Display {
         Display::QRCode {data: data.to_string(), instructions: instructions.to_string()}
     }
 
-    pub fn list(label: Option<&str>, items: Vec<ListItem>, flow: Option<Flow>, instructions: Option<&str>) -> Self {
-        Display::List{label: label.map(|i| i.to_string()), items, flow, instructions: instructions.map(|i| i.to_string())}
+    pub fn list(label: Option<&str>, items: Vec<ListItem>, instructions: Option<&str>) -> Self {
+        Display::List{label: label.map(|i| i.to_string()), items, instructions: instructions.map(|i| i.to_string())}
     }
 
     pub fn currency(amount: f32, instructions: &str) -> Self {
@@ -122,21 +126,26 @@ impl Display {
                 let color = ctx.state.get_or_default::<Theme>().colors.text.heading;
                 drawables![Icon::new(ctx, icon, Some(color), 128.0)]
             }
+            Display::Image {image, size} => drawables![Image{shape: ShapeType::Rectangle(0.0, *size, 0.0), image: image.clone(), color: None}],
             Display::Text {text, size, style, align} => drawables![ExpandableText::new(ctx, text, *size, *style, *align, None)],
             Display::Review {label, data, instructions} => drawables![DataItem::text(ctx, label, data, instructions, None)],
             Display::Table {label, items} => drawables![DataItem::table(ctx, label, items.iter().map(|TableItem{title, data}| (title.clone(), data.clone())).collect(), None)],
             Display::Currency {amount, instructions} => drawables![NumericalInput::display(ctx, *amount, instructions)],
             Display::List {items, instructions, ..} if items.is_empty() => drawables![ExpandableText::new(ctx, instructions.as_ref()?, TextSize::Md, TextStyle::Secondary, Align::Center, None)],
-            Display::List {label, items, flow, ..} => {
+            Display::List {label, items, ..} => {
                 let mut list_items = Vec::new();
 
-                match flow {
-                    Some(flow_ref) => for item in items {
-                        list_items.push(item.build(ctx, Some(flow_ref)));
-                    },
-                    None => for item in items {
-                        list_items.push(item.build(ctx, None));
-                    }
+                // match flow {
+                //     Some(flow_ref) => for item in items {
+                //         list_items.push(item.build(ctx, Some(flow_ref)));
+                //     },
+                //     None => for item in items {
+                //         list_items.push(item.build(ctx, None));
+                //     }
+                // }
+
+                for item in items {
+                    list_items.push(item.build(ctx));
                 }
 
                 drawables![ListItemSection::new(ctx, label.clone(), list_items)]
@@ -147,31 +156,33 @@ impl Display {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ListItem {avatar: Option<AvatarContent>, title: String, subtitle: String, secondary: Option<String>}
+#[derive(Debug, Clone, PartialEq)]
+pub struct ListItem {avatar: Option<AvatarContent>, title: String, subtitle: String, secondary: Option<String>, flow: Option<Flow>}
 
 impl ListItem {
-    pub fn plain(title: &str, subtitle: &str, secondary: Option<&str>, _tag: &str) -> Self {
+    pub fn plain(title: &str, subtitle: &str, secondary: Option<&str>, flow: Option<Flow>) -> Self {
         ListItem {
             avatar: None,
             title: title.to_string(),
             subtitle: subtitle.to_string(),
             secondary: secondary.map(|s| s.to_string()),
+            flow,
         }
     }
 
-    pub fn avatar(avatar: AvatarContent, title: &str, subtitle: &str, secondary: Option<&str>, _tag: &str) -> Self {
+    pub fn avatar(avatar: AvatarContent, title: &str, subtitle: &str, secondary: Option<&str>, flow: Option<Flow>) -> Self {
         ListItem {
             avatar: Some(avatar),
             title: title.to_string(),
             subtitle: subtitle.to_string(),
             secondary: secondary.map(|s| s.to_string()),
+            flow
         }
     }
 
-    pub(crate) fn build(&self, ctx: &mut Context, mut flow: Option<&mut Flow>) -> PelicanListItem {
-        let ListItem {avatar, title, subtitle, secondary} = self;
-        let closure = flow.as_mut().map(|f| f.build());
+    pub(crate) fn build(&self, ctx: &mut Context ) -> PelicanListItem {
+        let ListItem {avatar, title, subtitle, secondary, flow} = self;
+        let closure = flow.clone().as_mut().map(|f| f.build());
 
         PelicanListItem::new(ctx, avatar.clone(), 
             ListItemInfoLeft::new(title, Some(subtitle), None, None), 
@@ -182,13 +193,13 @@ impl ListItem {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Action {
     Share {data: String},
     SelectImage,
     Custom {action: Box<dyn FnMutClone>},
     None,
-    Navigate {flow: Flow},
+    // Navigate {flow: Flow},
 }
 
 impl Action {
@@ -204,9 +215,9 @@ impl Action {
         Action::Custom {action: Box::new(action)}
     }
 
-    pub fn navigate(flow: Flow) -> Self {
-        Action::Navigate {flow}
-    }
+    // pub fn navigate(flow: Flow) -> Self {
+    //     Action::Navigate {flow}
+    // }
 
     pub fn get(&self) -> Callback {
         match self {
@@ -224,14 +235,14 @@ impl Action {
                 Box::new(move |ctx: &mut Context| (action)(ctx))
             }
 
-            Action::Navigate {flow} => flow.clone().build(),
+            // Action::Navigate {flow} => flow.clone().build(),
 
             _ => Box::new(move |_ctx: &mut Context| println!("Doing nothing here..."))
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TableItem {title: String, data: String}
 
 impl TableItem {
@@ -247,6 +258,7 @@ impl std::fmt::Debug for EnumItem {
         f.debug_struct("EnumItem").field("title", &self.title).field("data", &self.data).finish()
     }
 }
+
 impl EnumItem {
     pub fn new(title: &str, data: &str, callback: impl FnMut(&mut Context) + Clone + 'static) -> Self {
         EnumItem {title: title.to_string(), data: data.to_string(), callback: Box::new(callback)}
@@ -258,125 +270,29 @@ impl EnumItem {
     }
 }
 
+impl PartialEq for EnumItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.title == other.title &&
+        self.data == other.data
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct ChecklistItem {title: String, subtitle: Option<String>, is_selected: bool}
+pub struct ChecklistItem {title: String, subtitle: Option<String>, is_selected: bool, on_check: Box<dyn FnMutClone>, on_uncheck: Box<dyn FnMutClone>}
 impl ChecklistItem {
-    pub fn new(title: &str, subtitle: Option<&str>, is_selected: bool) -> Self {
-        ChecklistItem {title: title.to_string(), subtitle: subtitle.map(|s| s.to_string()), is_selected}
+    pub fn new(title: &str, subtitle: Option<&str>, is_selected: bool, on_check: Box<dyn FnMutClone>, on_uncheck: Box<dyn FnMutClone>) -> Self {
+        ChecklistItem {title: title.to_string(), subtitle: subtitle.map(|s| s.to_string()), is_selected, on_check, on_uncheck}
     }
 
-    fn get(&self, ctx: &mut Context) -> Checkbox {
-        Checkbox::new(ctx, &self.title, self.subtitle.clone(), self.is_selected, &self.title)
-    }
-}
-
-pub type NavFn = Rc<RefCell<dyn FnMut(&mut Context)>>;
-
-/// Content of a tab button: either an icon or an avatar.
-#[derive(Debug, Clone)]
-pub enum RootContent {
-    Icon(String),
-    Avatar(AvatarContent),
-}
-
-impl RootContent {
-    pub fn icon(icon: &str) -> Self {
-        RootContent::Icon(icon.to_string())
-    }
-    
-    pub fn avatar(content: AvatarContent) -> Self {
-        RootContent::Avatar(content)
+    fn get(self, ctx: &mut Context) -> Checkbox {
+        Checkbox::new(ctx, &self.title, self.subtitle, self.is_selected, self.on_check, self.on_uncheck)
     }
 }
 
-/// Represents a tab root with its content and associated page.
-#[derive(Debug, Clone)]
-pub struct Root {
-    pub content: RootContent,
-    pub page: RootPage,
-}
-
-impl Root {
-    pub fn new(content: RootContent, page: RootPage) -> Self {
-        Root {content, page}
+impl PartialEq for ChecklistItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.title == other.title &&
+        self.subtitle == other.subtitle &&
+        self.is_selected == other.is_selected
     }
 }
-
-pub trait FnMutClone: FnMut(&mut Context) + 'static {
-    fn clone_box(&self) -> Box<dyn FnMutClone>;
-}
-
-impl<F> FnMutClone for F where F: FnMut(&mut Context) + Clone + 'static {
-    fn clone_box(&self) -> Box<dyn FnMutClone> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn FnMutClone> {
-    fn clone(&self) -> Self {
-        self.as_ref().clone_box()
-    }
-}
-
-impl std::fmt::Debug for dyn FnMutClone {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Clonable Closure")
-    }
-}
-
-pub trait ValidityFn: FnMut(&mut Context) -> bool + 'static {
-    fn clone_box(&self) -> Box<dyn ValidityFn>;
-}
-
-impl<F> ValidityFn for F where F: FnMut(&mut Context) -> bool + Clone + 'static {
-    fn clone_box(&self) -> Box<dyn ValidityFn> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn ValidityFn> {
-    fn clone(&self) -> Self {
-        self.as_ref().clone_box()
-    }
-}
-
-impl std::fmt::Debug for dyn ValidityFn {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Valitidy check...")
-    }
-}
-
-pub trait EditedFn: FnMut(&mut Context, &mut String) + 'static {
-    fn clone_box(&self) -> Box<dyn EditedFn>;
-
-    fn get(&self) -> Box<dyn FnMut(&mut Context, &mut String)> {
-        let mut closure = self.clone_box();
-        Box::new(move |ctx: &mut Context, val: &mut String| (closure)(ctx, val))
-    }
-}
-
-impl<F> EditedFn for F where F: FnMut(&mut Context, &mut String) + Clone + 'static {
-    fn clone_box(&self) -> Box<dyn EditedFn> { Box::new(self.clone()) }
-}
-
-impl Clone for Box<dyn EditedFn> { fn clone(&self) -> Self { self.as_ref().clone_box() } }
-
-impl std::fmt::Debug for dyn EditedFn { fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "EditedFn") } }
-
-
-// pub trait EnumeratorFn: FnMut(&mut Context, String) + 'static {
-//     fn clone_box(&self) -> Box<dyn EnumeratorFn>;
-
-//     fn get(&self) -> Box<dyn FnMut(&mut Context, String)> {
-//         let mut closure = self.clone_box();
-//         Box::new(move |ctx: &mut Context, val: String| (closure)(ctx, val))
-//     }
-// }
-
-// impl<F> EnumeratorFn for F where F: FnMut(&mut Context, String) + Clone + 'static {
-//     fn clone_box(&self) -> Box<dyn EnumeratorFn> { Box::new(self.clone()) }
-// }
-
-// impl Clone for Box<dyn EnumeratorFn> { fn clone(&self) -> Self { self.as_ref().clone_box() } }
-
-// impl std::fmt::Debug for dyn EnumeratorFn { fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "EnumeratorFn") } }
