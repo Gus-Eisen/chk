@@ -1,4 +1,4 @@
-use chk::{Success, Flow, Bumper, RootP, Display, RootBuilder, layout::Offset, Context, drawable::{Drawable, Component}, Screen, components::Circle, event::{OnEvent, Event}, layout::Stack, PageType, PageBuilder, ScreenBuilder};
+use chk::{FormItem, SuccessClosure, Success, Flow, Bumper, RootP, Display, RootBuilder, layout::Offset, Context, drawable::{Drawable, Component}, Screen, components::Circle, event::{OnEvent, Event}, layout::Stack, PageType, PageBuilder, ScreenBuilder};
 use chk::components::interface::{Interface, RootInfo};
 use ramp::prism;
 
@@ -7,291 +7,127 @@ use chk::items::{ListItem, Action, Input, EnumItem, TableItem};
 use std::sync::Arc;
 use image::RgbaImage;
 
-#[derive(Debug, Default)]
-pub struct ImagePath(String);
+pub struct _AddressBook;
+impl chk::App for _AddressBook {
+    fn roots(&self, ctx: &mut Context) -> Vec<RootInfo> {
+        ctx.state.insert(People(vec![
+            Person {name: "Annie".to_string(), phone_number: "406-802-2162".to_string(), address: "Spiegel 2".to_string(), info: String::new(), status: Status::Engaged},
+            Person {name: "Dave".to_string(), phone_number:  "406-802-2162".to_string(), address: "Spiegel 2".to_string(), info: String::new(), status: Status::Married},
+            Person {name: "Danny".to_string(), phone_number:  "406-802-2162".to_string(), address: "Spiegel 2".to_string(), info: String::new(), status: Status::Single},
+        ]));
+
+        let home = AddressBook::new(ctx);
+        vec![RootInfo::icon("book", "Book", Box::new(Screen::new(ctx, home)))]
+    }
+}
+
+chk::run!{|ctx: &mut Context| _AddressBook}
 
 #[derive(Debug, Clone)]
-pub struct BitcoinHome(Vec<Transaction>);
-impl BitcoinHome {
-    pub fn new(ctx: &mut Context) -> Self {BitcoinHome(ctx.state.get::<MyTransactions>().unwrap().inner.clone())}
+pub struct AddressBook(Vec<Person>);
+impl AddressBook {
+    pub fn new(ctx: &mut Context) -> Self {
+        AddressBook(ctx.state.get::<People>().unwrap().0.clone())
+    }
 }
-impl chk::Root for BitcoinHome {
+
+impl chk::Root for AddressBook {
     fn page(&mut self, ctx: &mut Context) -> Box<dyn RootBuilder> {
         Box::new(move |ctx: &mut Context| {
-            let transactions = ctx.state.get::<MyTransactions>().unwrap().inner.clone();
-            let receive = Screen::new_builder(ctx, Receive);
-            RootP::new(
-                "Test", 
-                vec![
-                    Display::currency(12.56, "0.00001234 BTC"),
-                    Display::list(None, transactions.into_iter().map(|tx| {
-                        let dir = if tx.is_received {"Received"} else {"Sent"};
-                        ListItem::plain(&format!("Bitcoin {dir}"), &tx.amount.btc, Some(&tx.amount.usd), &tx.txid)
-                    }).collect::<Vec<ListItem>>(), None) // Some(Flow::new(vec![Box::new(ViewTransaction::new(ctx))]))
-                ], 
-                None, 
-                ("Receive".to_string(), Flow::new(vec![receive])), 
-                Some(("Send".to_string(), Flow::from_form(ctx, Send)))
+            let people = ctx.state.get::<People>().unwrap().0.iter().map(|p| {
+                let person = p.clone();
+                ListItem::plain(&p.name, &p.address, Some(&p.phone_number), move |ctx: &mut Context| {ctx.state.insert(person.clone());})
+            }).collect::<Vec<ListItem>>();
+
+            RootP::new("Address book", 
+                vec![Display::list(None, people, None, Some(Flow::new(vec![Screen::new_builder(ContactDetails)])))], 
+                None, ("New contact".to_string(), Flow::from_form(NewContactForm)), None, 
             )
         })
     }
 
     fn redraw(&mut self, ctx: &mut Context) -> bool {
-        let transactions = ctx.state.get::<MyTransactions>().unwrap().inner.clone();
-        if self.0 != transactions {
-            self.0 = transactions;
-            return true;
-        }
-        false
-    }
-}
-
-pub struct Orange;
-impl Orange {
-    pub fn new(ctx: &mut Context) -> Interface {
-        ctx.state.insert(NewTransaction::default());
-        ctx.state.insert(MyTransactions {
-            inner: vec![
-                Transaction::new(true, "$12.30"),
-                Transaction::new(true, "$142.10"),
-                Transaction::new(false, "$46.30"),
-                Transaction::new(true, "$28.65"),
-                Transaction::new(false, "$22.31"),
-            ]
-        });
-        ctx.state.insert(ImagePath("seagull".to_string()));
-        let home = BitcoinHome::new(ctx);
-        let page = Screen::new(ctx, home);
-        Interface::new(ctx, 
-            vec![RootInfo::icon("wallet", "Test2", Box::new(page))], 
-            Box::new(|ctx: &mut Context, event: Box<dyn Event>| {vec![event]})
-        )
-    }
-}
-
-ramp::run!{|ctx: &mut Context| Orange::new(ctx)}
-
-// pub struct Orange;
-// impl chk::Application for Orange {
-//     fn roots(ctx: &mut Context) -> Vec<Box<dyn Root>> {
-//         ctx.state.insert(NewTransaction::default());
-//         ctx.state.insert(MyTransactions {
-//             inner: vec![
-//                 Transaction::new(true, "$12.30"),
-//                 Transaction::new(true, "$142.10"),
-//                 Transaction::new(false, "$46.30"),
-//                 Transaction::new(true, "$28.65"),
-//                 Transaction::new(false, "$22.31"),
-//             ]
-//         });
-//         vec![BitcoinHome::new(ctx)]
-//     }
-
-//     fn theme() -> Theme { Theme::Dark(Color::from_hex("#eb343a", 255)) }
-//     // fn on_event() -> Box<dyn FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>>;
-// }
-
-// chk::run!(Orange);
-
-
-#[derive(Debug, Clone)]
-pub struct Receive;
-impl chk::Page for Receive {
-    fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder> {
-        Box::new(move |ctx: &mut Context| {
-            let address = Address::generate();
-            PageType::display("Receive bitcoin", 
-                vec![Display::qr_code(&address, "Scan to receive bitcoin.")], 
-                None, Bumper::custom("Share", Action::share(&address), None), Offset::Center
-            )
-        })
-    }
-}
-
-// #[derive(Debug, Clone)]
-// pub struct ViewTransaction(PageType);
-// impl ViewTransaction {
-//     pub fn new(ctx: &mut Context) -> Self {
-//         let tx = &ctx.state.get::<NewTransaction>().unwrap().inner;
-//         let dir = if tx.is_received {"Received"} else {"Sent"};
-//         ViewTransaction(PageType::display(&format!("{dir} bitcoin"), vec![
-//             Display::currency(12.56, "0.00001234 BTC"),
-//             Display::table("Transcation details", vec![
-//                 TableItem::new("Amount Sent (BTC)", &tx.amount.btc),
-//                 TableItem::new("Amount Sent", &tx.amount.usd),
-//                 TableItem::new("Transaction Fee", &tx.fee),
-//                 TableItem::new( "Transaction Total", &tx.total),
-//             ])
-//         ], None, Bumper::Done, Offset::Start))
-//     }
-// }
-
-// impl chk::Page for ViewTransaction {
-//     fn page(&mut self, ctx: &mut Context) -> &mut PageType {&mut self.0}
-//     fn redraw(&mut self, ctx: &mut Context) -> bool {
-//         println!("CHECKING TO REDRAW");
-//         true
-//     }
-// }
-
-#[derive(Debug, Clone)]
-pub struct TransactionAddress;
-impl chk::Page for TransactionAddress {
-    fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder> {
-        // Some(vec![
-        //     QuickAction::custom("Paste Clipboard", "Pasted", |_ctx: &mut Context| {}),
-        //     QuickAction::flow("Scan QR Code", ScanQRCode::new()),
-        //     QuickAction::flow("Select Contact", SelectContact::new())
-        // ])
-
-        Box::new(move |ctx: &mut Context| {
-            PageType::input("Bitcoin address", 
-                Input::text("Bitcoin address", false, None, |ctx: &mut Context, val: &mut String| {
-                    ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.address = val.to_string());
-                }), None,
-                Bumper::default(Some(Box::new(|ctx: &mut Context| {
-                    ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.address.is_empty()).unwrap_or_default()
-                })))
-            )
-        })
+        let people = ctx.state.get::<People>().unwrap().0.clone();
+        (self.0 != people).then(|| self.0 = people).is_some()
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct TransactionAmount;
-impl chk::Page for TransactionAmount {
-    fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder> {
-        Box::new(move |ctx: &mut Context| {
-            PageType::input("Bitcoin amount", 
-                Input::currency("Enter send amount", |ctx: &mut Context, val: &mut String| {
-                    ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.amount.usd = val.to_string());
-                }), None,
-                Bumper::default(Some(Box::new(|ctx: &mut Context| false)))
-            )
-        })
-    }
-}
+pub struct NewContactForm;
+impl chk::Form for NewContactForm {
+    fn inputs(&self) -> Vec<FormItem> {vec![
+        FormItem::text("Contact name", |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewContact>().0.name),
+        FormItem::text("Phone number", |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewContact>().0.phone_number),
+        FormItem::text("Address", |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewContact>().0.address),
+        FormItem::text("Additional info", |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewContact>().0.info),
+        FormItem::enumerator("Marital status", vec![
+            EnumItem::new("Married", "No, you cannot have this person", |ctx: &mut Context| ctx.state.get_mut_or_default::<NewContact>().0.status = Status::Married),
+            EnumItem::new("Engaged", "You really should not try to take this person", |ctx: &mut Context| ctx.state.get_mut_or_default::<NewContact>().0.status = Status::Married),
+            EnumItem::new("Dating", "Kinda rude, but go for it buddy", |ctx: &mut Context| ctx.state.get_mut_or_default::<NewContact>().0.status = Status::Dating),
+            EnumItem::new("Single", "Have at 'em!", |ctx: &mut Context| ctx.state.get_mut_or_default::<NewContact>().0.status = Status::Single),
+        ])
+    ]}
 
-#[derive(Debug, Clone)]
-pub struct TransactionSpeed;
-impl chk::Page for TransactionSpeed {
-    fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder> {
-        Box::new(move |ctx: &mut Context| {
-            PageType::input("Transaction speed", 
-                Input::enumerator(vec![
-                    EnumItem::new("Standard", "Arrives in ~2 hours\n$0.18 bitcoin network fee", |ctx: &mut Context| {
-                        ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.is_priority = false);
-                    }),
-                    EnumItem::new("Priority", "Arrives in ~30 minutes\n$0.32 bitcoin network fee", |ctx: &mut Context| {
-                        ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.is_priority = true);
-                    }),
-                ]), None,
-                Bumper::default(None)
-            )
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct TransactionReview;
-impl chk::ReviewPage for TransactionReview {
-    fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder> {
-        Box::new(move |ctx: &mut Context| {
-            let tx = &ctx.state.get::<NewTransaction>().unwrap().inner;
-            let speed = if tx.is_priority {"Priority (~30 mins)"} else {"Standard (~2 hr)"};
-            PageType::display("Confirm send", 
-                vec![
-                    Display::review("Confirm address", &tx.address, "Bitcoin sent to the wrong address can never be recovered."),
-                    Display::table("Confirm amount", vec![
-                        TableItem::new("Amount Sent (BTC)", &tx.amount.btc),
-                        TableItem::new("Amount Sent", &tx.amount.usd),
-                        TableItem::new("Transaction Speed", speed),
-                        TableItem::new("Transaction Fee", &tx.fee),
-                        TableItem::new( "Transaction Total", &tx.total),
-                    ])
-                ], None, Bumper::default(None), Offset::Start
-            )
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct TransactionSuccess;
-impl chk::SuccessPage for TransactionSuccess {
-    fn info(&mut self, ctx: &mut Context) -> [String; 3] {
-        let tx = &ctx.state.get::<NewTransaction>().unwrap().inner;
-        ["Transaction Sent".to_string(), "bitcoin".to_string(), format!("You sent {}", tx.amount.usd)]
-    }
-}
-
-#[derive(Clone)]
-pub struct Send;
-impl chk::Form for Send {
-    fn inputs(&self) -> Vec<Box<dyn chk::Page>> {
-        vec![Box::new(TransactionAddress), Box::new(TransactionAmount), Box::new(TransactionSpeed)]
-    }
-
-    fn review(&self) -> Option<Box<dyn chk::ReviewPage>> { Some(Box::new(TransactionReview)) }
-    fn success(&self) -> Box<dyn chk::SuccessPage> { Box::new(TransactionSuccess) }
+    fn success(&self) -> Box<dyn SuccessClosure> {Box::new(|ctx: &mut Context| {
+        let person = &ctx.state.get_mut_or_default::<NewContact>().0;
+        ["Contact created".to_string(), "profile".to_string(), format!("Added {} to your contacts", person.name)]
+    })}
 
     fn on_submit(&self, ctx: &mut Context) {
-        let tran = ctx.state.get::<NewTransaction>().unwrap().clone();
-        println!("Broadcasting transaction... {:?}", tran);
-        ctx.state.get_mut_or_default::<MyTransactions>().inner.push(tran.inner);
+        let contact = ctx.state.get::<NewContact>().unwrap().0.clone();
+        ctx.state.get_mut_or_default::<People>().0.push(contact);
     }
 }
 
-pub struct Address;
-impl Address {
-    pub fn generate() -> String { "bcp1ceax843sTOhuad2lahteau29uxxTHoxalo".to_string() }
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]    
-pub struct BitcoinAmount {
-    pub btc: String,
-    pub usd: String,
-}
-
-impl BitcoinAmount {
-    pub fn usd(&self) -> Option<f32> {
-        self.usd.trim_start_matches('$').replace(',', "").parse::<f32>().ok()
+#[derive(Debug, Clone)]
+pub struct ContactDetails;
+impl chk::Page for ContactDetails {
+    fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder> {
+        Box::new(move |ctx: &mut Context| {
+            let person = &ctx.state.get::<Person>().unwrap();
+            PageType::display(&person.name, vec![
+                Display::table("Contact's details", vec![
+                    TableItem::new("Full Name", &person.name),
+                    TableItem::new("Phone Number", &person.phone_number),
+                    TableItem::new("Address", &person.address),
+                    TableItem::new("Maritial status", &person.status.to_string()),
+                ]),
+                Display::text(&format!("Additional information\n\n{}", &person.info)),
+            ], None, Bumper::Done, Offset::Start)
+        })
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Transaction {
-    pub address: String,
-    pub amount: BitcoinAmount,
-    pub is_priority: bool,
-    pub fee: String,
-    pub total: String,
-    pub is_received: bool,
-    pub txid: String,
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub enum Status {
+    Married,
+    Engaged,
+    Dating,
+    #[default]
+    Single
 }
 
-impl Transaction {
-    pub fn new(is_received: bool, usd: &str) -> Self {
-        Transaction {
-            address: "bcp1ceax843sTOhuad2lahteau29uxxTHoxalo".to_string(),
-            amount: BitcoinAmount {
-                btc: "0.00001234 BTC".to_string(),
-                usd: usd.to_string(),
-            },
-            is_priority: !is_received,
-            fee: "$3.00".to_string(),
-            total: "$536.99".to_string(),
-            is_received,
-            txid: "TXID".to_string()
-        }
+impl std::fmt::Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            Status::Married => "Married",
+            Status::Engaged => "Engaged",
+            Status::Dating => "Dating",
+            Status::Single => "Single",
+        })
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct NewTransaction {
-    pub inner: Transaction
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct MyTransactions {
-    pub inner: Vec<Transaction>
+#[derive(Debug, Default, Clone)]
+pub struct NewContact(Person);
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct People(Vec<Person>);
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Person {
+    name: String,
+    phone_number: String,
+    address: String,
+    info: String,
+    status: Status
 }

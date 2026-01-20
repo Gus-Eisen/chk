@@ -12,7 +12,7 @@ use std::fmt::Debug;
 
 use crate::flow::Flow;
 use crate::items::{Action, Input, Display};
-use crate::closure::{NavFn, ScreenBuilder, PageBuilder, RootBuilder};
+use crate::closure::{NavFn, ScreenBuilder, PageBuilder, RootBuilder, SuccessClosure};
 
 pub struct RootP(Box<dyn PageBuilder>);
 impl RootP {
@@ -28,15 +28,12 @@ pub trait SuccessPage: Debug + dyn_clone::DynClone {
 
 dyn_clone::clone_trait_object!(SuccessPage);
 
-#[derive(Debug, Clone)]
-pub struct Success(pub Box<dyn SuccessPage>);
-impl Success {
-    pub fn from(page: impl SuccessPage + Clone + 'static) -> Self {Success(Box::new(page))}
-}
+#[derive(Clone, Debug)]
+pub struct Success(pub Box<dyn SuccessClosure>);
 
 impl Page for Success {
     fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder> {
-        let [title, icon, text] = self.0.info(ctx);
+        let [title, icon, text] = (self.0)(ctx);
 
         Box::new(move |_: &mut Context| {
             let items = vec![Display::icon(&icon.clone()), Display::Text {text: text.clone(), size: TextSize::H4, style: TextStyle::Heading, align: Align::Center}];

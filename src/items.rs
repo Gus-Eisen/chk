@@ -15,7 +15,7 @@ use crate::closure::{FnMutClone, EditedFn};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Input {
-    Text {label: String, actions: Option<Vec<Action>>, show_label: bool, on_edited: Box<dyn EditedFn>},
+    Text {label: String, actions: Option<Vec<Action>>, show_label: bool, preset: Option<String>, on_edited: Box<dyn EditedFn>},
     Currency {instructions: String, on_edited: Box<dyn EditedFn>},
     Date {instructions: String, on_edited: Box<dyn EditedFn>},
     Time {instructions: String, on_edited: Box<dyn EditedFn>},
@@ -41,8 +41,8 @@ impl Input {
         Input::Enumerator {items}
     }
 
-    pub fn text(label: &str, show_label: bool, actions: Option<Vec<Action>>, on_edited: impl FnMut(&mut Context, &mut String) + Clone + 'static) -> Self {
-        Input::Text {label: label.to_string(), show_label, actions, on_edited: Box::new(on_edited)}
+    pub fn text(label: &str, show_label: bool, preset: Option<String>, actions: Option<Vec<Action>>, on_edited: impl FnMut(&mut Context, &mut String) + Clone + 'static) -> Self {
+        Input::Text {label: label.to_string(), show_label, preset, actions, on_edited: Box::new(on_edited)}
     }
 
     pub fn avatar(content: AvatarContent, flair: Option<(String, AvatarIconStyle)>, action: Option<Action>) -> Self {
@@ -55,7 +55,7 @@ impl Input {
 
     pub fn build(&self, ctx: &mut Context) -> Option<Vec<Box<dyn Drawable>>> {
         Some(match self {
-            Input::Text {show_label, label, on_edited, ..} => drawables![TextInput::new(ctx, None, show_label.then_some(label), Some(&format!("Enter {}...", label.to_lowercase())), None, None, on_edited.get())],
+            Input::Text {show_label, label, preset, on_edited, ..} => drawables![TextInput::new(ctx, preset.as_deref(), show_label.then_some(label), Some(&format!("Enter {}...", label.to_lowercase())), None, None, on_edited.get())],
             Input::Enumerator {items} => drawables![RadioSelector::new(ctx, 0, items.iter().map(|item| item.get()).collect::<Vec<_>>())],
             Input::Currency {instructions, on_edited} => drawables![NumericalInput::currency(ctx, instructions, on_edited.get())],
             Input::Date {instructions, on_edited} => drawables![NumericalInput::date(ctx, instructions, on_edited.get())],
@@ -74,12 +74,16 @@ pub enum Display {
     Review {label: String, data: String, instructions: String},
     Table {label: String, items: Vec<TableItem>},
     Currency {amount: f32, instructions: String},
-    List {label: Option<String>, items: Vec<ListItem>, instructions: Option<String>,}, // flow: Option<Flow>},
+    List {label: Option<String>, items: Vec<ListItem>, instructions: Option<String>},
     QRCode {data: String, instructions: String},
     Avatar {content: AvatarContent}
 }
 
 impl Display {
+    pub fn text(text: &str) -> Self {
+        Display::Text {text: text.to_string(), size: TextSize::Md, style: TextStyle::Primary, align: Align::Left}
+    }
+
     pub fn instructions(text: &str) -> Self {
         Display::Text {text: text.to_string(), size: TextSize::Md, style: TextStyle::Secondary, align: Align::Center}
     }
@@ -108,7 +112,8 @@ impl Display {
         Display::QRCode {data: data.to_string(), instructions: instructions.to_string()}
     }
 
-    pub fn list(label: Option<&str>, items: Vec<ListItem>, instructions: Option<&str>) -> Self {
+    pub fn list(label: Option<&str>, mut items: Vec<ListItem>, instructions: Option<&str>, flow: Option<Flow>) -> Self {
+        items.iter_mut().for_each(|item| {item.flow = flow.clone()});
         Display::List{label: label.map(|i| i.to_string()), items, instructions: instructions.map(|i| i.to_string())}
     }
 
@@ -127,7 +132,7 @@ impl Display {
                 drawables![Icon::new(ctx, icon, Some(color), 128.0)]
             }
             Display::Image {image, size} => drawables![Image{shape: ShapeType::Rectangle(0.0, *size, 0.0), image: image.clone(), color: None}],
-            Display::Text {text, size, style, align} => drawables![ExpandableText::new(ctx, text, *size, *style, *align, None)],
+            Display::Text {text, size, style, align} if !text.is_empty() => drawables![ExpandableText::new(ctx, text, *size, *style, *align, None)],
             Display::Review {label, data, instructions} => drawables![DataItem::text(ctx, label, data, instructions, None)],
             Display::Table {label, items} => drawables![DataItem::table(ctx, label, items.iter().map(|TableItem{title, data}| (title.clone(), data.clone())).collect(), None)],
             Display::Currency {amount, instructions} => drawables![NumericalInput::display(ctx, *amount, instructions)],
@@ -152,43 +157,65 @@ impl Display {
             }
             Display::QRCode {data, instructions} => drawables![QRCode::new(ctx, data), ExpandableText::new(ctx, instructions, TextSize::Md, TextStyle::Secondary, Align::Center, None)],
             Display::Avatar {content} => drawables![Avatar::new(ctx, content.clone(), None, false, AvatarSize::Xxl, None)],
+            _ => return None
         })
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ListItem {avatar: Option<AvatarContent>, title: String, subtitle: String, secondary: Option<String>, flow: Option<Flow>}
+#[derive(Debug, Clone)]
+pub struct ListItem {
+    avatar: Option<AvatarContent>, 
+    title: String, 
+    subtitle: String, 
+    secondary: Option<String>, 
+    flow: Option<Flow>, 
+    on_click: Box<dyn FnMutClone>
+}
+
+impl PartialEq for ListItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.avatar == other.avatar &&
+        self.title == other.title &&
+        self.subtitle == other.subtitle &&
+        self.flow == other.flow
+    }
+}
 
 impl ListItem {
-    pub fn plain(title: &str, subtitle: &str, secondary: Option<&str>, flow: Option<Flow>) -> Self {
+    pub fn plain(title: &str, subtitle: &str, secondary: Option<&str>, on_click: impl FnMut(&mut Context) + 'static + Clone) -> Self {
         ListItem {
             avatar: None,
             title: title.to_string(),
             subtitle: subtitle.to_string(),
             secondary: secondary.map(|s| s.to_string()),
-            flow,
+            flow: None,
+            on_click: Box::new(on_click)
         }
     }
 
-    pub fn avatar(avatar: AvatarContent, title: &str, subtitle: &str, secondary: Option<&str>, flow: Option<Flow>) -> Self {
+    pub fn avatar(avatar: AvatarContent, title: &str, subtitle: &str, secondary: Option<&str>, on_click: impl FnMut(&mut Context) + 'static + Clone) -> Self {
         ListItem {
             avatar: Some(avatar),
             title: title.to_string(),
             subtitle: subtitle.to_string(),
             secondary: secondary.map(|s| s.to_string()),
-            flow
+            flow: None,
+            on_click: Box::new(on_click)
         }
     }
 
-    pub(crate) fn build(&self, ctx: &mut Context ) -> PelicanListItem {
-        let ListItem {avatar, title, subtitle, secondary, flow} = self;
-        let closure = flow.clone().as_mut().map(|f| f.build());
+    pub(crate) fn build(&self, ctx: &mut Context) -> PelicanListItem {
+        let ListItem {avatar, title, subtitle, secondary, flow, on_click} = self.clone();
+        let has_flow = flow.is_some();
+        let closure = Box::new(move |ctx: &mut Context| {
+            (on_click.clone())(ctx);
+            if let Some(mut f) = flow.clone() {(f.build())(ctx);}
+        });
 
         PelicanListItem::new(ctx, avatar.clone(), 
-            ListItemInfoLeft::new(title, Some(subtitle), None, None), 
+            ListItemInfoLeft::new(&title, Some(&subtitle), None, None), 
             secondary.as_ref().map(|s| TitleSubtitle::new(s, Some("Details"))), 
-            None, flow.is_some().then_some("forward"), 
-            closure.unwrap_or(Box::new(|_ctx: &mut Context| {}))
+            None, has_flow.then_some("forward"), closure
         )
     }
 }

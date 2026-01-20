@@ -162,3 +162,48 @@ impl std::fmt::Debug for dyn ScreenBuilder {
         write!(f, "ScreenBuilder")
     }
 }
+
+
+pub trait MutString: FnMut(&mut Context) -> &mut String + 'static {
+    fn clone_box(&self) -> Box<dyn MutString>;
+}
+
+impl<F> MutString for F where F: FnMut(&mut Context) -> &mut String + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn MutString> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn MutString> {
+    fn clone(&self) -> Self {
+        self.as_ref().clone_box()
+    }
+}
+
+impl std::fmt::Debug for dyn MutString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MutString")
+    }
+}
+
+pub trait SuccessClosure: FnMut(&mut Context) -> [String; 3] + 'static {
+    fn clone_box(&self) -> Box<dyn SuccessClosure>;
+}
+
+impl<F> SuccessClosure for F where F: FnMut(&mut Context) -> [String; 3] + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn SuccessClosure> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn SuccessClosure> {
+    fn clone(&self) -> Self {
+        self.as_ref().clone_box()
+    }
+}
+
+impl std::fmt::Debug for dyn SuccessClosure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SuccessClosure")
+    }
+}
