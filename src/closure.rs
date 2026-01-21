@@ -5,7 +5,7 @@ use crate::page::{Screen, RootP, PageType};
 use std::rc::Rc;
 use std::cell::RefCell;
 
-pub trait FnMutClone: FnMut(&mut Context) + 'static {
+pub(crate) trait FnMutClone: FnMut(&mut Context) + 'static {
     fn clone_box(&self) -> Box<dyn FnMutClone>;
 }
 
@@ -29,7 +29,7 @@ impl std::fmt::Debug for dyn FnMutClone {
     }
 }
 
-pub trait ValidityFn: FnMut(&mut Context) -> bool + 'static {
+pub(crate) trait ValidityFn: FnMut(&mut Context) -> bool + 'static {
     fn clone_box(&self) -> Box<dyn ValidityFn>;
 }
 
@@ -53,7 +53,7 @@ impl std::fmt::Debug for dyn ValidityFn {
     }
 }
 
-pub trait EditedFn: FnMut(&mut Context, &mut String) + 'static {
+pub(crate) trait EditedFn: FnMut(&mut Context, &mut String) + 'static {
     fn clone_box(&self) -> Box<dyn EditedFn>;
 
     fn get(&self) -> Box<dyn FnMut(&mut Context, &mut String)> {
@@ -72,10 +72,10 @@ impl Clone for Box<dyn EditedFn> { fn clone(&self) -> Self { self.as_ref().clone
 
 impl std::fmt::Debug for dyn EditedFn { fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "EditedFn") } }
 
-pub type NavFnInner = Rc<RefCell<dyn FnMut(&mut Context)>>;
+pub(crate) type NavFnInner = Rc<RefCell<dyn FnMut(&mut Context)>>;
 
 #[derive(Clone)]
-pub struct NavFn(pub NavFnInner);
+pub(crate) struct NavFn(pub NavFnInner);
 
 impl PartialEq for NavFn {
     fn eq(&self, other: &Self) -> bool {
@@ -164,7 +164,7 @@ impl std::fmt::Debug for dyn ScreenBuilder {
 }
 
 
-pub trait MutString: FnMut(&mut Context) -> &mut String + 'static {
+pub(crate) trait MutString: FnMut(&mut Context) -> &mut String + 'static {
     fn clone_box(&self) -> Box<dyn MutString>;
 }
 

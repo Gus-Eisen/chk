@@ -10,13 +10,6 @@ use crate::page::Screen;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-#[derive(Clone)]
-pub enum NumberVariant {
-    Currency(u32),
-    Date,
-    Time,
-}
-
 pub trait Form {
     fn inputs(&self) -> Vec<FormItem>;
     fn review(&self) -> Option<Box<dyn ReviewPage>> {None}
@@ -69,15 +62,15 @@ impl FormItem {
                 Box::new(FormPage(Box::new(move |ctx: &mut Context| {
                     let mut getter = getter.clone();
                     let setter = getter.clone();
+                    let closure = move |ctx: &mut Context, val: &mut String| *(setter.clone())(ctx) = val.to_string();
 
                     let input = match variant {
                         NumberVariant::Currency(val) => {
-                            Input::currency("Enter dollar amount", move |ctx: &mut Context, val: &mut String| {
-                                *(setter.clone())(ctx) = val.to_string();
-                            })
+                            *(getter)(ctx) = val.to_string();
+                            Input::currency("Enter dollar amount", closure)
                         }
-                        NumberVariant::Date => panic!("Not accepting date variant yet"),
-                        NumberVariant::Time => panic!("Not accepting time variant yet")
+                        NumberVariant::Date => Input::date("Enter date", closure),
+                        NumberVariant::Time => Input::time("Enter time", closure),
                     };
 
                     PageType::input(&title, input, None, Bumper::default(Some(Box::new(move |ctx: &mut Context| (getter.clone())(ctx).is_empty()))))
@@ -95,7 +88,7 @@ impl FormItem {
 }
 
 #[derive(Debug, Clone)]
-pub struct FormPage(Box<dyn PageBuilder>);
+pub(crate) struct FormPage(Box<dyn PageBuilder>);
 impl Page for FormPage {
     fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder> {
         self.0.clone()
@@ -152,3 +145,9 @@ impl Flow{
     }
 }
 
+#[derive(Clone)]
+pub enum NumberVariant {
+    Currency(u32),
+    Date,
+    Time,
+}

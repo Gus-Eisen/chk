@@ -1,9 +1,7 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/ramp-stack/chk/main/logo.png")]
 
-pub use pelican_ui::*;
-use pelican_ui::event::Event;
+pub use pelican_ui::{Context, event::{OnEvent, Event}, layout::Offset, components::interface::RootInfo};
 use pelican_ui::theme::{Color, Theme as PelicanTheme};
-use pelican_ui::components::interface::RootInfo;
 
 pub mod closure;
 pub use closure::*;
@@ -30,18 +28,13 @@ impl Into<PelicanTheme> for Theme {
     }
 }
 
-impl Default for Theme {
-    fn default() -> Self {Theme::Dark(Color::from_hex("#ffdd00", 255))}
-}
+impl Default for Theme { fn default() -> Self {Theme::Dark(Color::from_hex("#ffdd00", 255))} }
 
 pub trait App {
     fn roots(&self, ctx: &mut Context) -> Vec<RootInfo>;
     fn theme(&self, ) -> Theme { Theme::default() }
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        vec![event]
-    }
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { vec![event] }
 }
-
 
 #[doc(hidden)]
 pub mod __private {

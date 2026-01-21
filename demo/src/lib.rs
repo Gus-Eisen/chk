@@ -1,5 +1,4 @@
-use chk::{FormItem, SuccessClosure, Success, Flow, Bumper, RootP, Display, RootBuilder, layout::Offset, Context, drawable::{Drawable, Component}, Screen, components::Circle, event::{OnEvent, Event}, layout::Stack, PageType, PageBuilder, ScreenBuilder};
-use chk::components::interface::{Interface, RootInfo};
+use chk::{RootInfo, FormItem, NumberVariant, SuccessClosure, Flow, Bumper, RootP, Display, RootBuilder, Offset, Context, Screen, PageType, PageBuilder};
 use ramp::prism;
 
 use chk::items::{ListItem, Action, Input, EnumItem, TableItem};
@@ -11,9 +10,9 @@ pub struct _AddressBook;
 impl chk::App for _AddressBook {
     fn roots(&self, ctx: &mut Context) -> Vec<RootInfo> {
         ctx.state.insert(People(vec![
-            Person {name: "Annie".to_string(), phone_number: "406-802-2162".to_string(), address: "Spiegel 2".to_string(), info: String::new(), status: Status::Engaged},
-            Person {name: "Dave".to_string(), phone_number:  "406-802-2162".to_string(), address: "Spiegel 2".to_string(), info: String::new(), status: Status::Married},
-            Person {name: "Danny".to_string(), phone_number:  "406-802-2162".to_string(), address: "Spiegel 2".to_string(), info: String::new(), status: Status::Single},
+            Person {name: "Annie".to_string(), phone_number: "406-802-2162".to_string(), address: "Spiegel 2".to_string(), info: String::new(), status: Status::Engaged, dob: "11/23/05".to_string()},
+            Person {name: "Dave".to_string(), phone_number:  "406-802-2162".to_string(), address: "Spiegel 2".to_string(), info: String::new(), status: Status::Married, dob: "02/06/01".to_string()},
+            Person {name: "Danny".to_string(), phone_number:  "406-802-2162".to_string(), address: "Spiegel 2".to_string(), info: String::new(), status: Status::Single, dob: "12/13/98".to_string()},
         ]));
 
         let home = AddressBook::new(ctx);
@@ -57,9 +56,10 @@ pub struct NewContactForm;
 impl chk::Form for NewContactForm {
     fn inputs(&self) -> Vec<FormItem> {vec![
         FormItem::text("Contact name", |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewContact>().0.name),
-        FormItem::text("Phone number", |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewContact>().0.phone_number),
         FormItem::text("Address", |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewContact>().0.address),
+        FormItem::text("Phone Number", |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewContact>().0.phone_number),
         FormItem::text("Additional info", |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewContact>().0.info),
+        FormItem::number("Birthday", NumberVariant::Date, |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewContact>().0.dob),
         FormItem::enumerator("Marital status", vec![
             EnumItem::new("Married", "No, you cannot have this person", |ctx: &mut Context| ctx.state.get_mut_or_default::<NewContact>().0.status = Status::Married),
             EnumItem::new("Engaged", "You really should not try to take this person", |ctx: &mut Context| ctx.state.get_mut_or_default::<NewContact>().0.status = Status::Married),
@@ -90,6 +90,7 @@ impl chk::Page for ContactDetails {
                     TableItem::new("Full Name", &person.name),
                     TableItem::new("Phone Number", &person.phone_number),
                     TableItem::new("Address", &person.address),
+                    TableItem::new("Date of birth", &person.dob),
                     TableItem::new("Maritial status", &person.status.to_string()),
                 ]),
                 Display::text(&format!("Additional information\n\n{}", &person.info)),
@@ -97,7 +98,6 @@ impl chk::Page for ContactDetails {
         })
     }
 }
-
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum Status {
@@ -128,6 +128,7 @@ pub struct Person {
     name: String,
     phone_number: String,
     address: String,
+    dob: String,
     info: String,
     status: Status
 }
