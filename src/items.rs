@@ -7,6 +7,7 @@ use pelican_ui::components::list_item::{ListItemSection, ListItemInfoLeft, ListI
 use pelican_ui::components::{Checkbox, CheckboxList, TextInput, RadioSelector, Icon, DataItem, QRCode, NumericalInput};
 use pelican_ui::components::text::{ExpandableText, TextStyle, TextSize};
 use pelican_ui::components::avatar::{Avatar, AvatarSize, AvatarContent, AvatarIconStyle};
+use pelican_ui::components::button::SecondaryButton;
 
 use std::sync::Arc;
 
@@ -76,7 +77,8 @@ pub enum Display {
     Currency {amount: f32, instructions: String},
     List {label: Option<String>, items: Vec<ListItem>, instructions: Option<String>},
     QRCode {data: String, instructions: String},
-    Avatar {content: AvatarContent}
+    Avatar {content: AvatarContent},
+    Actions {actions: Vec<ActionItem>}
 }
 
 impl Display {
@@ -125,6 +127,10 @@ impl Display {
         Display::Avatar {content}
     }
 
+    pub fn actions(actions: Vec<ActionItem>) -> Self {
+        Display::Actions {actions}
+    }
+
     pub fn build(&mut self, ctx: &mut Context) -> Option<Vec<Box<dyn Drawable>>> {
         Some(match self {
             Display::Icon {icon} => {
@@ -139,24 +145,12 @@ impl Display {
             Display::List {items, instructions, ..} if items.is_empty() => drawables![ExpandableText::new(ctx, instructions.as_ref()?, TextSize::Md, TextStyle::Secondary, Align::Center, None)],
             Display::List {label, items, ..} => {
                 let mut list_items = Vec::new();
-
-                // match flow {
-                //     Some(flow_ref) => for item in items {
-                //         list_items.push(item.build(ctx, Some(flow_ref)));
-                //     },
-                //     None => for item in items {
-                //         list_items.push(item.build(ctx, None));
-                //     }
-                // }
-
-                for item in items {
-                    list_items.push(item.build(ctx));
-                }
-
+                for item in items { list_items.push(item.build(ctx)); }
                 drawables![ListItemSection::new(ctx, label.clone(), list_items)]
             }
             Display::QRCode {data, instructions} => drawables![QRCode::new(ctx, data), ExpandableText::new(ctx, instructions, TextSize::Md, TextStyle::Secondary, Align::Center, None)],
             Display::Avatar {content} => drawables![Avatar::new(ctx, content.clone(), None, false, AvatarSize::Xxl, None)],
+            Display::Actions {actions} => actions.into_iter().map(|ActionItem(a, l, i)| Box::new(SecondaryButton::medium(ctx, &i, &l, None, a.get())) as Box<dyn Drawable>).collect::<Vec<_>>(),
             _ => return None
         })
     }
@@ -226,6 +220,7 @@ pub enum Action {
     SelectImage,
     Custom {action: Box<dyn FnMutClone>},
     None,
+    Flow {flow: Flow},
     // Navigate {flow: Flow},
 }
 
@@ -240,6 +235,10 @@ impl Action {
 
     pub fn custom(action: impl FnMutClone + 'static) -> Self {
         Action::Custom {action: Box::new(action)}
+    }
+
+    pub fn flow(flow: Flow) -> Self {
+        Action::Flow {flow}
     }
 
     // pub fn navigate(flow: Flow) -> Self {
@@ -262,12 +261,27 @@ impl Action {
                 Box::new(move |ctx: &mut Context| (action)(ctx))
             }
 
+            Action::Flow {flow} => {
+                let mut flow = flow.clone();
+                Box::new(move |ctx: &mut Context| {flow.build();})
+            }
+
             // Action::Navigate {flow} => flow.clone().build(),
 
             _ => Box::new(move |_ctx: &mut Context| println!("Doing nothing here..."))
         }
     }
 }
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ActionItem(Action, String, String);
+impl ActionItem {
+    pub fn new(action: Action, label: &str, icon: &str) -> Self {
+        ActionItem(action, label.to_string(), icon.to_string())
+    }
+}
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TableItem {title: String, data: String}

@@ -1,8 +1,9 @@
-use chk::{Success, Flow, Bumper, RootP, Display, RootBuilder, layout::Offset, Context, drawable::{Drawable, Component}, Screen, components::Circle, event::{OnEvent, Event}, layout::Stack, PageType, PageBuilder, ScreenBuilder};
-use chk::components::interface::{Interface, RootInfo};
-use ramp::prism;
-
-use chk::items::{ListItem, Action, Input, EnumItem, TableItem};
+use chk::{
+    RootInfo, FormItem, NumberVariant, SuccessClosure, Flow, Bumper, ActionItem,
+    RootP, Display, RootBuilder, Offset, Context, Screen, PageType, PageBuilder,
+    Color, Theme
+};
+use chk::items::{ListItem, Action, EnumItem, TableItem};
 
 use std::sync::Arc;
 use image::RgbaImage;
@@ -11,8 +12,8 @@ use image::RgbaImage;
 pub struct ImagePath(String);
 
 pub struct Orange;
-impl Orange {
-    pub fn new(ctx: &mut Context) -> Interface {
+impl chk::App for Orange {
+    fn roots(&self, ctx: &mut Context) -> Vec<RootInfo> {
         ctx.state.insert(NewTransaction::default());
         ctx.state.insert(MyTransactions {
             inner: vec![
@@ -25,16 +26,12 @@ impl Orange {
         });
         
         let home = BitcoinHome::new(ctx);
-        let page = Screen::new(ctx, home);
-
-        Interface::new(ctx, 
-            vec![RootInfo::icon("wallet", "Test2", Box::new(page))], 
-            Box::new(|ctx: &mut Context, event: Box<dyn Event>| {vec![event]})
-        )
+        vec![RootInfo::icon("wallet", "Test2", Box::new(Screen::new(ctx, home)))]
     }
+
+    fn theme(&self) -> Theme {Theme::Dark(Color::from_hex("#EB343A", 255))}
 }
 
-ramp::run!{|ctx: &mut Context| Orange::new(ctx)}
 
 #[derive(Debug, Clone)]
 pub struct BitcoinHome(Vec<Transaction>);
@@ -109,72 +106,6 @@ impl chk::Page for ViewTransaction {
     }
 }
 
-// impl chk::Page for ViewTransaction {
-//     fn page(&mut self, ctx: &mut Context) -> &mut PageType {&mut self.0}
-//     fn redraw(&mut self, ctx: &mut Context) -> bool {
-//         println!("CHECKING TO REDRAW");
-//         true
-//     }
-// }
-
-#[derive(Debug, Clone)]
-pub struct TransactionAddress;
-impl chk::Page for TransactionAddress {
-    fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder> {
-        // Some(vec![
-        //     QuickAction::custom("Paste Clipboard", "Pasted", |_ctx: &mut Context| {}),
-        //     QuickAction::flow("Scan QR Code", ScanQRCode::new()),
-        //     QuickAction::flow("Select Contact", SelectContact::new())
-        // ])
-
-        Box::new(move |ctx: &mut Context| {
-            PageType::input("Bitcoin address", 
-                Input::text("Bitcoin address", false, None, |ctx: &mut Context, val: &mut String| {
-                    ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.address = val.to_string());
-                }), None,
-                Bumper::default(Some(Box::new(|ctx: &mut Context| {
-                    ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.address.is_empty()).unwrap_or_default()
-                })))
-            )
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct TransactionAmount;
-impl chk::Page for TransactionAmount {
-    fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder> {
-        Box::new(move |ctx: &mut Context| {
-            PageType::input("Bitcoin amount", 
-                Input::currency("Enter send amount", |ctx: &mut Context, val: &mut String| {
-                    ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.amount.usd = val.to_string());
-                }), None,
-                Bumper::default(Some(Box::new(|ctx: &mut Context| false)))
-            )
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct TransactionSpeed;
-impl chk::Page for TransactionSpeed {
-    fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder> {
-        Box::new(move |ctx: &mut Context| {
-            PageType::input("Transaction speed", 
-                Input::enumerator(vec![
-                    EnumItem::new("Standard", "Arrives in ~2 hours\n$0.18 bitcoin network fee", |ctx: &mut Context| {
-                        ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.is_priority = false);
-                    }),
-                    EnumItem::new("Priority", "Arrives in ~30 minutes\n$0.32 bitcoin network fee", |ctx: &mut Context| {
-                        ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.is_priority = true);
-                    }),
-                ]), None,
-                Bumper::default(None)
-            )
-        })
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct TransactionReview;
 impl chk::ReviewPage for TransactionReview {
@@ -198,24 +129,27 @@ impl chk::ReviewPage for TransactionReview {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct TransactionSuccess;
-impl chk::SuccessPage for TransactionSuccess {
-    fn info(&mut self, ctx: &mut Context) -> [String; 3] {
-        let tx = &ctx.state.get::<NewTransaction>().unwrap().inner;
-        ["Transaction Sent".to_string(), "bitcoin".to_string(), format!("You sent {}", tx.amount.usd)]
-    }
-}
-
 #[derive(Clone)]
 pub struct Send;
 impl chk::Form for Send {
-    fn inputs(&self) -> Vec<Box<dyn chk::Page>> {
-        vec![Box::new(TransactionAddress), Box::new(TransactionAmount), Box::new(TransactionSpeed)]
-    }
+    fn inputs(&self) -> Vec<FormItem> {vec![
+        FormItem::text("Bitcoin address", |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewTransaction>().inner.address),
+        FormItem::number("Bitcoin amount", NumberVariant::Currency, |ctx: &mut Context| &mut ctx.state.get_mut_or_default::<NewTransaction>().inner.amount.usd),
+        FormItem::enumerator("TransactionSpeed", vec![
+            EnumItem::new("Standard", "Arrives in ~2 hours\n$0.18 bitcoin network fee", |ctx: &mut Context| {
+                ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.is_priority = false);
+            }),
+            EnumItem::new("Priority", "Arrives in ~30 minutes\n$0.32 bitcoin network fee", |ctx: &mut Context| {
+                ctx.state.get_mut::<NewTransaction>().map(|tx| tx.inner.is_priority = true);
+            }),
+        ])
+    ]}
 
     fn review(&self) -> Option<Box<dyn chk::ReviewPage>> { Some(Box::new(TransactionReview)) }
-    fn success(&self) -> Box<dyn chk::SuccessPage> { Box::new(TransactionSuccess) }
+    fn success(&self) -> Box<dyn SuccessClosure> {Box::new(|ctx: &mut Context| {
+        let tx = &ctx.state.get::<NewTransaction>().unwrap().inner;
+        ["Transaction Sent".to_string(), "bitcoin".to_string(), format!("You sent {}", tx.amount.usd)]
+    })}
 
     fn on_submit(&self, ctx: &mut Context) {
         let tran = ctx.state.get::<NewTransaction>().unwrap().clone();

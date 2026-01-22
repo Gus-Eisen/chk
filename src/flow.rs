@@ -3,7 +3,7 @@ use pelican_ui::components::interface::NavigationEvent;
 use pelican_ui::utils::Callback;
 
 use crate::items::{EnumItem, Input};
-use crate::page::{Review, SuccessPage, Success, ReviewPage, Page, PageType, Bumper};
+use crate::page::{Review, Success, ReviewPage, Page, PageType, Bumper};
 use crate::closure::{NavFn, FnMutClone, ScreenBuilder, MutString, PageBuilder, SuccessClosure};
 use crate::page::Screen;
 
@@ -65,10 +65,7 @@ impl FormItem {
                     let closure = move |ctx: &mut Context, val: &mut String| *(setter.clone())(ctx) = val.to_string();
 
                     let input = match variant {
-                        NumberVariant::Currency(val) => {
-                            *(getter)(ctx) = val.to_string();
-                            Input::currency("Enter dollar amount", closure)
-                        }
+                        NumberVariant::Currency => Input::currency("Enter dollar amount", closure),
                         NumberVariant::Date => Input::date("Enter date", closure),
                         NumberVariant::Time => Input::time("Enter time", closure),
                     };
@@ -147,7 +144,7 @@ impl Flow{
 
 #[derive(Clone)]
 pub enum NumberVariant {
-    Currency(u32),
+    Currency,
     Date,
     Time,
 }

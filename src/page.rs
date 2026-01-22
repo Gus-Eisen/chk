@@ -22,12 +22,6 @@ impl RootP {
     }
 }
 
-pub trait SuccessPage: Debug + dyn_clone::DynClone {
-    fn info(&mut self, ctx: &mut Context) -> [String; 3];
-}
-
-dyn_clone::clone_trait_object!(SuccessPage);
-
 #[derive(Clone, Debug)]
 pub struct Success(pub Box<dyn SuccessClosure>);
 
@@ -43,6 +37,7 @@ impl Page for Success {
 }
 
 pub trait ReviewPage: Debug + dyn_clone::DynClone {
+    // TODO: Needs to return the specific Display Items cause currently they could make the review page an input screen (BAD)
     fn page(&mut self, ctx: &mut Context) -> Box<dyn PageBuilder>;
 }
 
