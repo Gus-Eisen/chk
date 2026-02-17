@@ -1,11 +1,12 @@
 #![allow(clippy::type_complexity)]
-use pelican_ui::Context;
-use crate::page::{Screen, RootP, PageType};
+use pelican_ui::{Context, theme::Theme};
+use crate::page::{Screen, PageType};
+use crate::{ChkBuilder, FormStorage};
 
 use std::rc::Rc;
 use std::cell::RefCell;
 
-pub(crate) trait FnMutClone: FnMut(&mut Context) + 'static {
+pub trait FnMutClone: FnMut(&mut Context) + 'static {
     fn clone_box(&self) -> Box<dyn FnMutClone>;
 }
 
@@ -72,7 +73,7 @@ impl Clone for Box<dyn EditedFn> { fn clone(&self) -> Self { self.as_ref().clone
 
 impl std::fmt::Debug for dyn EditedFn { fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "EditedFn") } }
 
-pub(crate) type NavFnInner = Rc<RefCell<dyn FnMut(&mut Context)>>;
+pub(crate) type NavFnInner = Rc<RefCell<dyn FnMut(&mut Context, &Theme)>>;
 
 #[derive(Clone)]
 pub(crate) struct NavFn(pub NavFnInner);
@@ -95,11 +96,11 @@ impl std::fmt::Debug for NavFn {
     }
 }
 
-pub trait PageBuilder: FnMut(&mut Context) -> PageType + 'static {
+pub trait PageBuilder: FnMut(&ChkBuilder) -> PageType + 'static {
     fn clone_box(&self) -> Box<dyn PageBuilder>;
 }
 
-impl<F> PageBuilder for F where F: FnMut(&mut Context) -> PageType + Clone + 'static {
+impl<F> PageBuilder for F where F: FnMut(&ChkBuilder) -> PageType + Clone + 'static {
     fn clone_box(&self) -> Box<dyn PageBuilder> {
         Box::new(self.clone())
     }
@@ -114,29 +115,6 @@ impl Clone for Box<dyn PageBuilder> {
 impl std::fmt::Debug for dyn PageBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PageBuilder")
-    }
-}
-
-
-pub trait RootBuilder: FnMut(&mut Context) -> RootP + 'static {
-    fn clone_box(&self) -> Box<dyn RootBuilder>;
-}
-
-impl<F> RootBuilder for F where F: FnMut(&mut Context) -> RootP + Clone + 'static {
-    fn clone_box(&self) -> Box<dyn RootBuilder> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn RootBuilder> {
-    fn clone(&self) -> Self {
-        self.as_ref().clone_box()
-    }
-}
-
-impl std::fmt::Debug for dyn RootBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "RootBuilder")
     }
 }
 
@@ -163,6 +141,28 @@ impl std::fmt::Debug for dyn ScreenBuilder {
     }
 }
 
+pub trait SuccessClosure: FnMut(&mut Context) -> [String; 3] + 'static {
+    fn clone_box(&self) -> Box<dyn SuccessClosure>;
+}
+
+impl<F> SuccessClosure for F where F: FnMut(&mut Context) -> [String; 3] + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn SuccessClosure> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn SuccessClosure> {
+    fn clone(&self) -> Self {
+        self.as_ref().clone_box()
+    }
+}
+
+impl std::fmt::Debug for dyn SuccessClosure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SuccessClosure")
+    }
+}
+
 
 pub(crate) trait MutString: FnMut(&mut Context) -> &mut String + 'static {
     fn clone_box(&self) -> Box<dyn MutString>;
@@ -186,24 +186,24 @@ impl std::fmt::Debug for dyn MutString {
     }
 }
 
-pub trait SuccessClosure: FnMut(&mut Context) -> [String; 3] + 'static {
-    fn clone_box(&self) -> Box<dyn SuccessClosure>;
+pub(crate) trait FormClosure: FnMut(&mut FormStorage, String) + 'static {
+    fn clone_box(&self) -> Box<dyn FormClosure>;
 }
 
-impl<F> SuccessClosure for F where F: FnMut(&mut Context) -> [String; 3] + Clone + 'static {
-    fn clone_box(&self) -> Box<dyn SuccessClosure> {
+impl<F> FormClosure for F where F: FnMut(&mut FormStorage, String) + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn FormClosure> {
         Box::new(self.clone())
     }
 }
 
-impl Clone for Box<dyn SuccessClosure> {
+impl Clone for Box<dyn FormClosure> {
     fn clone(&self) -> Self {
         self.as_ref().clone_box()
     }
 }
 
-impl std::fmt::Debug for dyn SuccessClosure {
+impl std::fmt::Debug for dyn FormClosure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SuccessClosure")
+        write!(f, "FormClosure")
     }
 }

@@ -1,7 +1,7 @@
 use chk::{
     RootInfo, FormItem, NumberVariant, SuccessClosure, Flow, Bumper, ActionItem,
     RootP, Display, RootBuilder, Offset, Context, Screen, PageType, PageBuilder,
-    Color, Theme
+    Color, Theme, ChkBuilder
 };
 use chk::items::{ListItem, Action, EnumItem, TableItem};
 
@@ -12,7 +12,7 @@ use chk::items::{ListItem, Action, EnumItem, TableItem};
 pub struct _Netflix;
 
 impl chk::App for _Netflix {
-    fn roots(&self, ctx: &mut Context) -> Vec<RootInfo> {
+    fn roots(&self, ctx: &mut Context, builder: ChkBuilder) -> Vec<RootInfo> {
         // Seed titles
         ctx.state.insert(Titles(vec![
             Title {
@@ -93,10 +93,12 @@ impl chk::App for _Netflix {
         let search = SearchRoot::new(ctx);
         let list = MyListRoot::new(ctx);
 
+        let builder = ChkBuilder::new(Theme::Dark(Color::from_hex("#E50914", 255)));
+
         vec![
-            RootInfo::icon("play", "Browse", Box::new(Screen::new(ctx, home))),
-            RootInfo::icon("search", "Search", Box::new(Screen::new(ctx, search))),
-            RootInfo::icon("bookmark", "My List", Box::new(Screen::new(ctx, list))),
+            RootInfo::icon("play", "Browse", Box::new(Screen::new(builder, home))),
+            RootInfo::icon("search", "Search", Box::new(Screen::new(builder, search))),
+            RootInfo::icon("bookmark", "My List", Box::new(Screen::new(builder, list))),
         ]
     }
 
