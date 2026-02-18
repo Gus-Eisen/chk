@@ -1611,7 +1611,9 @@ dependencies = [
 
 [[package]]
 name = "maverick_os"
-version = "0.3.0"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22a8f8da660f1e87f825cb3359e6d9985624225b57efc63c312bc70b4b2b9ae7"
 dependencies = [
  "android-activity",
  "android_logger",
@@ -2609,7 +2611,7 @@ checksum = "35fb2e5f958ec131621fdd531e9fc186ed768cbe395337403ae56c17a74c68ec"
 
 [[package]]
 name = "pelican_ui"
-version = "2.0.6"
+version = "2.1.0"
 dependencies = [
  "chrono",
  "hex",
@@ -2618,7 +2620,7 @@ dependencies = [
  "include_dir",
  "nsvg",
  "prism2",
- "ptsd",
+ "ptsd2",
  "qrcode",
  "quircs",
  "uuid",
@@ -2744,7 +2746,9 @@ checksum = "e8cf8e6a8aa66ce33f63993ffc4ea4271eb5b0530a9002db8455ea6050c77bfa"
 
 [[package]]
 name = "prism2"
-version = "0.1.1"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "296e04b3e0f9a5dace824490f802d3e31c75613265a2e1a5f6dc3088a6554920"
 dependencies = [
  "anyanymap",
  "downcast-rs 2.0.2",
@@ -2759,7 +2763,9 @@ dependencies = [
 
 [[package]]
 name = "prism_proc"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e34e8f2c1dcdf1181b362637cb21b3b43b4899d3752367e05042e840f042cfb0"
 dependencies = [
  "proc-macro2 1.0.103",
  "quote 1.0.42",
@@ -2813,8 +2819,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "ptsd"
+name = "ptsd2"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "505337cd194554a54fcf10d739116c0ef928afdd573d431c11a42fae3ae3e4c5"
 dependencies = [
  "chrono",
  "downcast-rs 2.0.2",
@@ -2908,7 +2916,7 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "ramp2"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "maverick_os",
  "prism2",
@@ -4158,7 +4166,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu_canvas"
-version = "5.0.4"
+version = "5.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "062a3d4773cfdc3be8026668616c58ae1dfb37e44083fa524256ede19bb76bf8"
 dependencies = [
  "bytemuck",
  "fontdue",

@@ -1,7 +1,7 @@
 use ramp::prism;
 use pelican_ui::event::{OnEvent, TickEvent, Event};
 use pelican_ui::drawable::{Component, Drawable, SizedTree};
-use pelican_ui::{Context, Callback};
+use pelican_ui::{drawables, Context, Callback};
 use pelican_ui::layout::{Stack, Offset};
 use pelican_ui::canvas::Align;
 use pelican_ui::utils::{ValidationFn};
@@ -12,10 +12,10 @@ use pelican_ui::theme::Theme;
 
 use std::fmt::Debug;
 
-use crate::ChkBuilder;
-use crate::flow::Flow;
+use crate::{ChkBuilder};
+use crate::flow::{Flow, FlowStorageObject};
 use crate::items::{Action, Input, Display};
-use crate::closure::{NavFn, ScreenBuilder, PageBuilder, SuccessClosure};
+use crate::closure::{NavFn, ScreenBuilder, PageBuilder, SuccessClosure, ReviewItemGetter, SuccessGetter};
 
 pub struct Root;
 impl Root {
@@ -58,7 +58,9 @@ pub enum PageType {
     Root {title: String, items: Vec<Display>, header: Option<(String, Flow)>, bumper_a: (String, Flow), bumper_b: Option<(String, Flow)>},
     Display{title: String, items: Vec<Display>, offset: Offset, header: Option<(String, Flow)>, bumper: Bumper, next: Option<NavFn>, flow_len: usize},
     Input{title: String, item: Input, header: Option<(String, Flow)>, bumper: Bumper, flow_len: usize, next: Option<NavFn>},
-    Form{title: String, item: Input, flow_len: usize, next: Option<NavFn>}
+    Form{title: String, item: Input, flow_len: usize, next: Option<NavFn>},
+    Review{title: String, getter: Box<dyn ReviewItemGetter>, flow_len: usize, next: Option<NavFn>},
+    Success{title: String, getter: Box<dyn SuccessGetter>, flow_len: usize}
 }
 
 impl PageType {
@@ -78,21 +80,33 @@ impl PageType {
         PageType::Form { title: title.to_string(), item, flow_len: 1, next: None }
     }
 
+    pub fn review(title: &str, getter: Box<dyn ReviewItemGetter>) -> Self {
+        PageType::Review { title: title.to_string(), getter, flow_len: 1, next: None }
+    }
+
+    pub fn success(title: &str, getter: Box<dyn SuccessGetter>) -> Self {
+        PageType::Success { title: title.to_string(), getter, flow_len: 1 }
+    }
+
     pub fn nav_fn(&mut self) -> Option<&mut Option<NavFn>> {
         match self {
-            PageType::Root{..} => None,
-            PageType::Display{next, ..} => Some(next),
-            PageType::Input{next, ..} => Some(next),
-            PageType::Form{next, ..} => Some(next),
+            PageType::Root{..} |
+            PageType::Success{..} => None,
+            PageType::Display{next, ..} |
+            PageType::Input{next, ..} |
+            PageType::Form{next, ..} |
+            PageType::Review{next, ..} => Some(next),
         }
     }
 
     pub fn length(&mut self) -> Option<&mut usize> {
         match self {
             PageType::Root{..} => None,
-            PageType::Display{flow_len, ..} => Some(flow_len),
-            PageType::Input{flow_len, ..} => Some(flow_len),
-            PageType::Form{flow_len, ..} => Some(flow_len)
+            PageType::Display{flow_len, ..} |
+            PageType::Input{flow_len, ..} |
+            PageType::Form{flow_len, ..} |
+            PageType::Success{flow_len, ..} |
+            PageType::Review{flow_len, ..} => Some(flow_len)
         }
     }
 
@@ -101,7 +115,9 @@ impl PageType {
             PageType::Root{title, items, header, bumper_a, bumper_b} => Box::new(RootPage::new(builder, title.to_string(), items.to_vec(), header.clone(), bumper_a.clone(), bumper_b.clone())),
             PageType::Display{title, items, offset, header, bumper, next, flow_len} => Box::new(StackPage::display(ctx, builder, title.to_string(), items.to_vec(), *offset, header.clone(), bumper.clone(), next.clone(), *flow_len)),
             PageType::Input{title, item, header, bumper, next, flow_len} => Box::new(StackPage::input(ctx, builder, title.to_string(), item.clone(), header.clone(), bumper.clone(), next.clone(), *flow_len)),
-            PageType::Form{title, item, next, flow_len} => Box::new(FormPage::new(builder, title.to_string(), item.clone(), next.clone(), *flow_len))
+            PageType::Form{title, item, next, flow_len} => Box::new(FormPage::new(builder, title.to_string(), item.clone(), next.clone(), *flow_len)),
+            PageType::Review{title, getter, next, flow_len} => Box::new(ReviewPage::new(builder, title.to_string(), getter.clone(), next.clone(), *flow_len)),
+            PageType::Success{title, getter, flow_len} => Box::new(SuccessPage::new(builder, title.to_string(), getter.clone(), *flow_len)),
         }
     }
 }
@@ -253,5 +269,83 @@ impl FormPage {
         );
 
         FormPage(Stack::default(), page)
+    }
+}
+
+#[derive(Debug, Component, Clone)]
+pub struct ReviewPage(Stack, pub PelicanPage, #[skip] Box<dyn ReviewItemGetter>, #[skip] ChkBuilder);
+impl OnEvent for ReviewPage {}
+impl AppPage for ReviewPage {}
+impl ReviewPage {
+    pub fn new(builder: &ChkBuilder, title: String, item_getter: Box<dyn ReviewItemGetter>, next: Option<NavFn>, flow_len: usize) -> Self {
+        println!("Creating review page");
+        use pelican_ui::components::TextInput;
+
+        let theme: &Theme = builder.theme();
+        let header = Header::stack(&theme, &title, None);
+        let bumper = {
+            let stack_closure: Box<dyn Callback> = match next {
+                Some(n) => {
+                    let next = n.clone();
+                    Box::new(move |ctx: &mut Context, theme: &Theme| {
+                        println!("ReviewPage Next");
+                        (next.borrow_mut())(ctx, theme);
+                    }) as Box<dyn Callback>
+                },
+                None => {
+                    Box::new(move |ctx: &mut Context, _: &Theme| {println!("Doing nothing")}) as Box<dyn Callback>
+                }
+            };
+
+            Some(PelicanBumper::stack(&theme, None, stack_closure, None))
+        };
+
+        let page = PelicanPage::new(
+            header, 
+            Content::new(Offset::Start, Vec::new(), Box::new(|children| true)), 
+            bumper
+        );
+
+        ReviewPage(Stack::default(), page, item_getter, builder.clone())
+    }
+
+    pub fn on_change(&mut self, new: Vec<FlowStorageObject>) {
+        let builder = self.3.clone();
+        let items: Vec<Display> = (self.2)(new);
+        let content = items.into_iter().map(|mut i| i.build(&builder)).flatten().flatten().collect::<Vec<Box<dyn Drawable>>>();
+        self.1.content = Content::new(Offset::Start, content, Box::new(|children| true));
+    }
+}
+
+#[derive(Debug, Component, Clone)]
+pub struct SuccessPage(Stack, pub PelicanPage, #[skip] Box<dyn SuccessGetter>, #[skip] ChkBuilder);
+impl OnEvent for SuccessPage {}
+impl AppPage for SuccessPage {}
+impl SuccessPage {
+    pub fn new(builder: &ChkBuilder, title: String, getter: Box<dyn SuccessGetter>, flow_len: usize) -> Self {
+        println!("Creating success page");
+
+        let theme: &Theme = builder.theme();
+        let header = Header::stack_end(&theme, &title);
+        let bumper = Some(PelicanBumper::stack_end(&theme, Some(flow_len)));
+        let page = PelicanPage::new(
+            header, 
+            Content::new(Offset::Center, vec![], Box::new(|children| true)), 
+            bumper
+        );
+
+        SuccessPage(Stack::default(), page, getter, builder.clone())
+    }
+
+    pub fn on_change(&mut self, new: Vec<FlowStorageObject>) {
+        use pelican_ui::colors;
+        use pelican_ui::components::{text::Text, Icon};
+        let builder = self.3.clone();
+        let theme: &Theme = builder.theme();
+        let (icon, description) = (self.2)(new);
+        self.1.content = Content::new(Offset::Center, drawables![
+            Icon::new(&theme, &icon, Some(theme.colors().get(colors::Text::Heading)), 128.0),
+            Text::new(&theme, &description, TextSize::H4, TextStyle::Heading, Align::Center, None)
+        ], Box::new(|children| true));
     }
 }

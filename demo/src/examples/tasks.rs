@@ -1,7 +1,7 @@
 use chk::{
     RootInfo, FormItem, NumberVariant, SuccessClosure, Flow, Bumper, ActionItem,
     Display, Offset, Context, Screen, PageType, PageBuilder,
-    Color, Theme, ChkBuilder, Form, Root
+    Color, Theme, ChkBuilder, Form, Root, FlowStorageObject, Review, Success
 };
 use chk::items::{ListItem, Action, EnumItem, TableItem};
 
@@ -65,6 +65,23 @@ impl NewTaskForm {
             // let task = ctx.state.get::<NewTask>().unwrap().0.clone();
             // ctx.state.get_mut_or_default::<Tasks>().0.push(task);
         });
+
+        let review = |objects: Vec<FlowStorageObject>| {
+            let mut items = vec![];
+            println!("Objects {:?}", objects);
+            if let FlowStorageObject::TextInput(x) = &objects[0] {items.push(TableItem::new("Title", &x));}
+            if let FlowStorageObject::TextInput(x) = &objects[1] {items.push(TableItem::new("Description", &x));} 
+            if let FlowStorageObject::NumericalInput(x) = &objects[2] {items.push(TableItem::new("Due Date", &x));}  
+            if let FlowStorageObject::RadioSelector(x) = &objects[3] {items.push(TableItem::new("Priority", &x.to_string()));} 
+
+            vec![Display::table("Task details", items)]
+            // Display::text(&format!("Description\n\n{}", task.description)),
+        };
+
+        let success = |objects: Vec<FlowStorageObject>| {
+            let title = if let FlowStorageObject::TextInput(x) = &objects[0] {x} else {"a new task"};
+            ("checkmark".to_string(), format!("You created {}", title))
+        };
         
         NewTaskForm(Form::new(builder, vec![
             FormItem::text("Title"),
@@ -75,7 +92,7 @@ impl NewTaskForm {
                 ("Medium", "Within 7 days"),
                 ("High", "Within 1-2 days"),
             ]),
-        ], closure))
+        ], Review::new("Confirm", review), Success::new("Task created", success), closure))
     }
 }
 

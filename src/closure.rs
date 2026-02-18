@@ -1,7 +1,8 @@
 #![allow(clippy::type_complexity)]
 use pelican_ui::{Context, theme::Theme};
 use crate::page::{Screen, PageType};
-use crate::{ChkBuilder, FormStorage};
+use crate::{ChkBuilder, FormStorage, Display};
+use crate::flow::FlowStorageObject;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -205,5 +206,49 @@ impl Clone for Box<dyn FormClosure> {
 impl std::fmt::Debug for dyn FormClosure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "FormClosure")
+    }
+}
+
+pub(crate) trait ReviewItemGetter: FnMut(Vec<FlowStorageObject>) -> Vec<Display> + 'static {
+    fn clone_box(&self) -> Box<dyn ReviewItemGetter>;
+}
+
+impl<F> ReviewItemGetter for F where F: FnMut(Vec<FlowStorageObject>) -> Vec<Display> + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn ReviewItemGetter> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn ReviewItemGetter> {
+    fn clone(&self) -> Self {
+        self.as_ref().clone_box()
+    }
+}
+
+impl std::fmt::Debug for dyn ReviewItemGetter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ReviewItemGetter")
+    }
+}
+
+pub(crate) trait SuccessGetter: FnMut(Vec<FlowStorageObject>) -> (String, String) + 'static {
+    fn clone_box(&self) -> Box<dyn SuccessGetter>;
+}
+
+impl<F> SuccessGetter for F where F: FnMut(Vec<FlowStorageObject>) -> (String, String) + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn SuccessGetter> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn SuccessGetter> {
+    fn clone(&self) -> Self {
+        self.as_ref().clone_box()
+    }
+}
+
+impl std::fmt::Debug for dyn SuccessGetter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SuccessGetter")
     }
 }

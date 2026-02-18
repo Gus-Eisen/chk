@@ -1625,7 +1625,7 @@ dependencies = [
 
 [[package]]
 name = "maverick_os"
-version = "0.3.0"
+version = "0.3.2"
 dependencies = [
  "android-activity",
  "android_logger",
@@ -2597,7 +2597,7 @@ checksum = "35fb2e5f958ec131621fdd531e9fc186ed768cbe395337403ae56c17a74c68ec"
 
 [[package]]
 name = "pelican_ui"
-version = "2.0.6"
+version = "2.1.0"
 dependencies = [
  "chrono",
  "hex",
@@ -2605,7 +2605,8 @@ dependencies = [
  "imageproc",
  "include_dir",
  "nsvg",
- "prism2",
+ "prism2 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ptsd2",
  "qrcode",
  "quircs",
  "uuid",
@@ -2731,18 +2732,41 @@ checksum = "e8cf8e6a8aa66ce33f63993ffc4ea4271eb5b0530a9002db8455ea6050c77bfa"
 
 [[package]]
 name = "prism2"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyanymap",
  "downcast-rs 2.0.2",
+ "dyn-clone",
+ "image 0.25.9",
+ "include_dir",
+ "nsvg",
  "prism_proc",
  "uuid",
- "wgpu_canvas",
+ "wgpu_canvas 5.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "prism2"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "296e04b3e0f9a5dace824490f802d3e31c75613265a2e1a5f6dc3088a6554920"
+dependencies = [
+ "anyanymap",
+ "downcast-rs 2.0.2",
+ "dyn-clone",
+ "image 0.25.9",
+ "include_dir",
+ "nsvg",
+ "prism_proc",
+ "uuid",
+ "wgpu_canvas 5.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "prism_proc"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e34e8f2c1dcdf1181b362637cb21b3b43b4899d3752367e05042e840f042cfb0"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -2793,6 +2817,25 @@ checksum = "a65f2e60fbf1063868558d69c6beacf412dc755f9fc020f514b7955fc914fe30"
 dependencies = [
  "quote 1.0.40",
  "syn 2.0.106",
+]
+
+[[package]]
+name = "ptsd2"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "505337cd194554a54fcf10d739116c0ef928afdd573d431c11a42fae3ae3e4c5"
+dependencies = [
+ "chrono",
+ "downcast-rs 2.0.2",
+ "hex",
+ "image 0.25.9",
+ "imageproc",
+ "include_dir",
+ "nsvg",
+ "prism2 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "qrcode",
+ "quircs",
+ "uuid",
 ]
 
 [[package]]
@@ -2877,8 +2920,8 @@ name = "ramp2"
 version = "0.1.1"
 dependencies = [
  "maverick_os",
- "prism2",
- "wgpu_canvas",
+ "prism2 0.1.2",
+ "wgpu_canvas 5.0.5",
 ]
 
 [[package]]
@@ -4133,13 +4176,24 @@ dependencies = [
 
 [[package]]
 name = "wgpu_canvas"
-version = "5.0.4"
+version = "5.0.5"
 dependencies = [
  "bytemuck",
  "fontdue",
  "image 0.25.9",
  "lazy_static",
  "wgpu",
+]
+
+[[package]]
+name = "wgpu_canvas"
+version = "5.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "062a3d4773cfdc3be8026668616c58ae1dfb37e44083fa524256ede19bb76bf8"
+dependencies = [
+ "fontdue",
+ "image 0.25.9",
+ "lazy_static",
 ]
 
 [[package]]
