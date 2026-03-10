@@ -4,16 +4,17 @@ use pelican_ui::canvas::{Align, RgbaImage, ShapeType, Image};
 use pelican_ui::theme::Theme;
 use pelican_ui::utils::{TitleSubtitle};
 use pelican_ui::components::list_item::{ListItemSection, ListItemInfoLeft, ListItem as PelicanListItem};
-use pelican_ui::components::{Checkbox, CheckboxList, TextInput, RadioSelector, Icon, DataItem, QRCode, NumericalInput};
+use pelican_ui::components::{TextInput, RadioSelector, Icon, DataItem, QRCode, NumericalInput};
 use pelican_ui::components::text::{ExpandableText, TextStyle, TextSize};
-use pelican_ui::components::avatar::{Avatar, AvatarSize, AvatarContent, AvatarIconStyle};
+use pelican_ui::components::avatar::{Avatar, AvatarSize};
+pub use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
 use pelican_ui::components::button::SecondaryButton;
+use pelican_ui::components::SearchBar;
 
 use std::sync::Arc;
 
 use crate::ChkBuilder;
-use crate::flow::Flow;
-use crate::closure::{EditedFn};
+use crate::flow::{Flow, FlowStorageObject};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Input {
@@ -23,7 +24,7 @@ pub enum Input {
     Time {instructions: String}, //, on_edited: Box<dyn EditedFn>},
     Enumerator {items: Vec<EnumItem>},
     Avatar {content: AvatarContent, flair: Option<(String, AvatarIconStyle)>, action: Option<Action>},
-    Boolean {items: Vec<ChecklistItem>}
+    Search {items: Vec<ListItem>}
 }
 
 impl Input {
@@ -51,21 +52,35 @@ impl Input {
         Input::Avatar {content, flair, action}
     }
 
-    pub fn checklist(items: Vec<ChecklistItem>) -> Self {
-        Input::Boolean {items}
+    pub fn search(items: Vec<ListItem>) -> Self {
+        Input::Search {items}
     }
 
     pub fn build(&self, builder: &ChkBuilder) -> Option<Vec<Box<dyn Drawable>>> {
         let theme: &Theme = builder.theme();
         Some(match self {
-            Input::Text {show_label, label, preset, ..} => drawables![TextInput::new(&theme, preset.as_deref(), show_label.then_some(label), Some(&format!("Enter {}...", label.to_lowercase())), None, None)],
-            Input::Enumerator {items} => drawables![RadioSelector::new(&theme, 0, items.iter().map(|item| item.get()).collect::<Vec<_>>())],
-            Input::Currency {instructions} => drawables![NumericalInput::numerical(&theme, instructions)],
-            Input::Date {instructions} => drawables![NumericalInput::date(&theme, instructions)],
-            Input::Time {instructions} => drawables![NumericalInput::time(&theme, instructions)],
-            Input::Avatar {content, flair, action} => drawables![Avatar::new(&theme, content.clone(), flair.clone(), flair.is_some(), AvatarSize::Xxl, action.as_ref().map(|a| a.get()))],
-            Input::Boolean {items} => drawables![CheckboxList::new(items.iter().map(|item| item.clone().get(&theme)).collect::<Vec<_>>())]
+            Input::Text {show_label, label, preset, ..} => drawables![TextInput::new(theme, preset.as_deref(), show_label.then_some(label), Some(&format!("Enter {}...", label.to_lowercase())), None, None)],
+            Input::Enumerator {items} => drawables![RadioSelector::new(theme, 0, items.iter().map(|item| item.get()).collect::<Vec<_>>())],
+            Input::Currency {instructions} => drawables![NumericalInput::numerical(theme, instructions)],
+            Input::Date {instructions} => drawables![NumericalInput::date(theme, instructions)],
+            Input::Time {instructions} => drawables![NumericalInput::time(theme, instructions)],
+            Input::Avatar {content, flair, action} => drawables![Avatar::new(theme, content.clone(), flair.clone(), flair.is_some(), AvatarSize::Xxl, action.as_ref().map(|a| a.get()))],
+            Input::Search {items} => drawables![SearchBar::new(theme, items.iter().map(|item| item.build(builder)).collect::<Vec<_>>())]
         })
+    }
+
+    pub fn store_in(child: &dyn Drawable, state: &mut Vec<FlowStorageObject>) {
+        if let Some(input) = child.downcast_ref::<TextInput>() {
+            state.push(FlowStorageObject::Text(input.value()));
+        } else if let Some(selector) = child.downcast_ref::<RadioSelector>() {
+            state.push(FlowStorageObject::Enumerator(selector.value()));
+        } else if let Some(input) = child.downcast_ref::<NumericalInput>() {
+            state.push(FlowStorageObject::Number(input.value()));
+        } else if let Some(avatar) = child.downcast_ref::<Avatar>() {
+            state.push(FlowStorageObject::Avatar(avatar.content.clone()))
+        } else if let Some(searchbar) = child.downcast_ref::<SearchBar>() {
+            state.push(FlowStorageObject::Search(searchbar.results()))
+        }
     }
 }
 
@@ -116,8 +131,7 @@ impl Display {
         Display::QRCode {data: data.to_string(), instructions: instructions.to_string()}
     }
 
-    pub fn list(label: Option<&str>, mut items: Vec<ListItem>, instructions: Option<&str>, flow: Option<Flow>) -> Self {
-        items.iter_mut().for_each(|item| {item.flow = flow.clone()});
+    pub fn list(label: Option<&str>, items: Vec<ListItem>, instructions: Option<&str>) -> Self {
         Display::List{label: label.map(|i| i.to_string()), items, instructions: instructions.map(|i| i.to_string())}
     }
 
@@ -136,17 +150,17 @@ impl Display {
     pub fn build(&mut self, builder: &ChkBuilder) -> Option<Vec<Box<dyn Drawable>>> {
         let theme: &Theme = builder.theme();
         Some(match self {
-            Display::Icon {icon} => drawables![Icon::new(&theme, icon, Some(theme.colors().get(colors::Text::Heading)), 128.0)],
+            Display::Icon {icon} => drawables![Icon::new(theme, icon, Some(theme.colors().get(colors::Text::Heading)), 128.0)],
             Display::Image {image, size} => drawables![Image{shape: ShapeType::Rectangle(0.0, *size, 0.0), image: image.clone(), color: None}],
-            Display::Text {text, size, style, align} if !text.is_empty() => drawables![ExpandableText::new(&theme, text, *size, *style, *align, None)],
-            Display::Review {label, data, instructions} => drawables![DataItem::text(&theme, label, data, instructions, Some(Vec::<(String, Option<String>, Box<dyn Callback>)>::new()))],
-            Display::Table {label, items} => drawables![DataItem::table(&theme, label, items.iter().map(|TableItem{title, data}| (title.clone(), data.clone())).collect(), Some(Vec::<(String, Option<String>, Box<dyn Callback>)>::new()))],
-            Display::Currency {amount, instructions} => drawables![NumericalInput::display(&theme, instructions)],
-            Display::List {items, instructions, ..} if items.is_empty() => drawables![ExpandableText::new(&theme, instructions.as_ref()?, TextSize::Md, TextStyle::Secondary, Align::Center, None)],
-            Display::List {label, items, ..} => drawables![ListItemSection::new(&theme, label.clone(), items.into_iter().map(|item| item.build(&builder)).collect::<Vec<_>>())],
-            Display::QRCode {data, instructions} => drawables![QRCode::new(&theme, data), ExpandableText::new(&theme, instructions, TextSize::Md, TextStyle::Secondary, Align::Center, None)],
-            Display::Avatar {content} => drawables![Avatar::new(&theme, content.clone(), None, false, AvatarSize::Xxl, None)],
-            Display::Actions {actions} => actions.into_iter().map(|ActionItem(a, l, i)| Box::new(SecondaryButton::medium(&theme, &i, &l, None, a.get())) as Box<dyn Drawable>).collect::<Vec<_>>(),
+            Display::Text {text, size, style, align} if !text.is_empty() => drawables![ExpandableText::new(theme, text, *size, *style, *align, None)],
+            Display::Review {label, data, instructions} => drawables![DataItem::text(theme, label, data, instructions, Some(Vec::<(String, Option<String>, Box<dyn Callback>)>::new()))],
+            Display::Table {label, items} => drawables![DataItem::table(theme, label, items.iter().map(|TableItem{title, data}| (title.clone(), data.clone())).collect(), Some(Vec::<(String, Option<String>, Box<dyn Callback>)>::new()))],
+            Display::Currency {amount, instructions} => drawables![NumericalInput::display(theme, *amount, instructions)],
+            Display::List {items, instructions, ..} if items.is_empty() => drawables![ExpandableText::new(theme, instructions.as_ref()?, TextSize::Md, TextStyle::Secondary, Align::Center, None)],
+            Display::List {label, items, ..} => drawables![ListItemSection::new(theme, label.clone(), items.iter_mut().map(|item| item.build(builder)).collect::<Vec<_>>())],
+            Display::QRCode {data, instructions} => drawables![QRCode::new(theme, data), ExpandableText::new(theme, instructions, TextSize::Md, TextStyle::Secondary, Align::Center, None)],
+            Display::Avatar {content} => drawables![Avatar::new(theme, content.clone(), None, false, AvatarSize::Xxl, None)],
+            Display::Actions {actions} => actions.iter_mut().map(|ActionItem(a, l, i)| Box::new(SecondaryButton::medium(theme, i, l, None, a.get())) as Box<dyn Drawable>).collect::<Vec<_>>(),
             _ => return None
         })
     }
@@ -159,42 +173,48 @@ pub struct ListItem {
     subtitle: String, 
     secondary: Option<String>, 
     flow: Option<Flow>, 
-    on_click: Box<dyn Callback>
+}
+
+impl PartialEq for ListItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.avatar == other.avatar &&
+        self.title == other.title &&
+        self.subtitle == other.subtitle &&
+        self.secondary == other.secondary
+    }
 }
 
 impl ListItem {
-    pub fn plain(title: &str, subtitle: &str, secondary: Option<&str>, on_click: impl FnMut(&mut Context, &Theme) + 'static + Clone) -> Self {
+    pub fn plain(title: &str, subtitle: &str, secondary: Option<&str>, flow: Option<Flow>) -> Self {
         ListItem {
             avatar: None,
             title: title.to_string(),
             subtitle: subtitle.to_string(),
             secondary: secondary.map(|s| s.to_string()),
-            flow: None,
-            on_click: Box::new(on_click)
+            flow,
         }
     }
 
-    pub fn avatar(avatar: AvatarContent, title: &str, subtitle: &str, secondary: Option<&str>, on_click: impl FnMut(&mut Context, &Theme) + 'static + Clone) -> Self {
+    pub fn avatar(avatar: AvatarContent, title: &str, subtitle: &str, secondary: Option<&str>, flow: Option<Flow>) -> Self {
         ListItem {
             avatar: Some(avatar),
             title: title.to_string(),
             subtitle: subtitle.to_string(),
             secondary: secondary.map(|s| s.to_string()),
-            flow: None,
-            on_click: Box::new(on_click)
+            flow,
         }
     }
 
     pub(crate) fn build(&self, builder: &ChkBuilder) -> PelicanListItem {
-        let ListItem {avatar, title, subtitle, secondary, flow, on_click} = self.clone();
+        let ListItem {avatar, title, subtitle, secondary, flow} = self.clone();
         let has_flow = flow.is_some();
         let closure = Box::new(move |ctx: &mut Context, theme: &Theme| {
-            (on_click.clone())(ctx, theme);
+            // (on_click.clone())(ctx, theme);
             if let Some(mut f) = flow.clone() {(f.build(ctx))(ctx, theme);}
         });
 
         let theme: &Theme = builder.theme();
-        PelicanListItem::new(&theme, avatar.clone(), 
+        PelicanListItem::new(theme, avatar.clone(), 
             ListItemInfoLeft::new(&title, Some(&subtitle), None, None), 
             secondary.as_ref().map(|s| TitleSubtitle::new(s, Some("Details"))), 
             None, has_flow.then_some("forward"), closure
@@ -315,25 +335,5 @@ impl PartialEq for EnumItem {
     fn eq(&self, other: &Self) -> bool {
         self.title == other.title &&
         self.data == other.data
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ChecklistItem {title: String, subtitle: Option<String>, is_selected: bool, on_check: Box<dyn Callback>, on_uncheck: Box<dyn Callback>}
-impl ChecklistItem {
-    pub fn new(title: &str, subtitle: Option<&str>, is_selected: bool, on_check: Box<dyn Callback>, on_uncheck: Box<dyn Callback>) -> Self {
-        ChecklistItem {title: title.to_string(), subtitle: subtitle.map(|s| s.to_string()), is_selected, on_check, on_uncheck}
-    }
-
-    fn get(self, theme: &Theme) -> Checkbox {
-        Checkbox::new(theme, &self.title, self.subtitle, self.is_selected, self.on_check, self.on_uncheck)
-    }
-}
-
-impl PartialEq for ChecklistItem {
-    fn eq(&self, other: &Self) -> bool {
-        self.title == other.title &&
-        self.subtitle == other.subtitle &&
-        self.is_selected == other.is_selected
     }
 }

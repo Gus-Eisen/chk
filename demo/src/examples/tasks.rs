@@ -47,7 +47,7 @@ impl TaskList {
 
         Root::new("Tasks",
             vec![Display::list(None, items, None, Some(Flow::new(vec![Screen::new_builder(builder, TaskDetails::new())])))], //Some(Flow::new(vec![Screen::new_builder(builder, TaskDetails)])))],
-            None, ("New Task".into(), Flow::from_form(form)), None,
+            None, ("New Task".into(), Flow::from_form(form)), Some(("Ask Question".into(), Flow::new(vec![Screen::new_builder(builder, AskQuestion::new())]))),
         )
     }
 
@@ -68,7 +68,6 @@ impl NewTaskForm {
 
         let review = |objects: Vec<FlowStorageObject>| {
             let mut items = vec![];
-            println!("Objects {:?}", objects);
             if let FlowStorageObject::TextInput(x) = &objects[0] {items.push(TableItem::new("Title", &x));}
             if let FlowStorageObject::TextInput(x) = &objects[1] {items.push(TableItem::new("Description", &x));} 
             if let FlowStorageObject::NumericalInput(x) = &objects[2] {items.push(TableItem::new("Due Date", &x));}  
@@ -125,8 +124,6 @@ impl NewTaskForm {
 
 #[derive(Debug, Clone)]
 pub struct TaskDetails;
-
-
 impl TaskDetails {
     fn new() -> Box<dyn PageBuilder> {
         Box::new(|builder: &ChkBuilder| {
@@ -152,6 +149,17 @@ impl TaskDetails {
                 Bumper::Done,
                 Offset::Start,
             )
+        })
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct AskQuestion;
+impl AskQuestion {
+    fn new() -> Box<dyn PageBuilder> {
+        Box::new(|builder: &ChkBuilder| {
+            PageType::messaging("Ask Question")
         })
     }
 }

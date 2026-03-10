@@ -31,7 +31,7 @@ impl std::fmt::Debug for dyn FnMutClone {
     }
 }
 
-pub(crate) trait ValidityFn: FnMut(&mut Context) -> bool + 'static {
+pub trait ValidityFn: FnMut(&mut Context) -> bool + 'static {
     fn clone_box(&self) -> Box<dyn ValidityFn>;
 }
 
@@ -55,13 +55,8 @@ impl std::fmt::Debug for dyn ValidityFn {
     }
 }
 
-pub(crate) trait EditedFn: FnMut(&mut Context, &mut String) + 'static {
+pub trait EditedFn: FnMut(&mut Context, &mut String) + 'static {
     fn clone_box(&self) -> Box<dyn EditedFn>;
-
-    fn get(&self) -> Box<dyn FnMut(&mut Context, &mut String)> {
-        let mut closure = self.clone_box();
-        Box::new(move |ctx: &mut Context, val: &mut String| (closure)(ctx, val))
-    }
 }
 
 impl PartialEq for dyn EditedFn{fn eq(&self, _: &Self) -> bool {true}}
@@ -74,10 +69,10 @@ impl Clone for Box<dyn EditedFn> { fn clone(&self) -> Self { self.as_ref().clone
 
 impl std::fmt::Debug for dyn EditedFn { fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "EditedFn") } }
 
-pub(crate) type NavFnInner = Rc<RefCell<dyn FnMut(&mut Context, &Theme)>>;
+pub type NavFnInner = Rc<RefCell<dyn FnMut(&mut Context, &Theme)>>;
 
 #[derive(Clone)]
-pub(crate) struct NavFn(pub NavFnInner);
+pub struct NavFn(pub NavFnInner);
 
 impl PartialEq for NavFn {
     fn eq(&self, other: &Self) -> bool {
@@ -165,7 +160,7 @@ impl std::fmt::Debug for dyn SuccessClosure {
 }
 
 
-pub(crate) trait MutString: FnMut(&mut Context) -> &mut String + 'static {
+pub trait MutString: FnMut(&mut Context) -> &mut String + 'static {
     fn clone_box(&self) -> Box<dyn MutString>;
 }
 
@@ -187,7 +182,7 @@ impl std::fmt::Debug for dyn MutString {
     }
 }
 
-pub(crate) trait FormClosure: FnMut(&mut FormStorage, String) + 'static {
+pub trait FormClosure: FnMut(&mut FormStorage, String) + 'static {
     fn clone_box(&self) -> Box<dyn FormClosure>;
 }
 
@@ -209,11 +204,11 @@ impl std::fmt::Debug for dyn FormClosure {
     }
 }
 
-pub(crate) trait ReviewItemGetter: FnMut(Vec<FlowStorageObject>) -> Vec<Display> + 'static {
+pub trait ReviewItemGetter: FnMut(&Vec<FlowStorageObject>) -> Vec<Display> + 'static {
     fn clone_box(&self) -> Box<dyn ReviewItemGetter>;
 }
 
-impl<F> ReviewItemGetter for F where F: FnMut(Vec<FlowStorageObject>) -> Vec<Display> + Clone + 'static {
+impl<F> ReviewItemGetter for F where F: FnMut(&Vec<FlowStorageObject>) -> Vec<Display> + Clone + 'static {
     fn clone_box(&self) -> Box<dyn ReviewItemGetter> {
         Box::new(self.clone())
     }
@@ -231,7 +226,7 @@ impl std::fmt::Debug for dyn ReviewItemGetter {
     }
 }
 
-pub(crate) trait SuccessGetter: FnMut(Vec<FlowStorageObject>) -> (String, String) + 'static {
+pub trait SuccessGetter: FnMut(Vec<FlowStorageObject>) -> (String, String) + 'static {
     fn clone_box(&self) -> Box<dyn SuccessGetter>;
 }
 
@@ -250,5 +245,30 @@ impl Clone for Box<dyn SuccessGetter> {
 impl std::fmt::Debug for dyn SuccessGetter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "SuccessGetter")
+    }
+}
+
+
+pub trait FormSubmit: FnMut(&mut Context, &Vec<FlowStorageObject>) + 'static {
+    fn clone_box(&self) -> Box<dyn FormSubmit>;
+}
+
+impl PartialEq for dyn FormSubmit{fn eq(&self, _: &Self) -> bool {true}}
+
+impl<F> FormSubmit for F where F: FnMut(&mut Context, &Vec<FlowStorageObject>) + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn FormSubmit> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn FormSubmit> {
+    fn clone(&self) -> Self {
+        self.as_ref().clone_box()
+    }
+}
+
+impl std::fmt::Debug for dyn FormSubmit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FormSubmit Closure")
     }
 }
