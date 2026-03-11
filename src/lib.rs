@@ -68,10 +68,10 @@ macro_rules! run {
         ramp::run!(move |ctx: &mut Context, assets: Assets| {
             let app: Rc<RefCell<dyn App>> = Rc::new(RefCell::new(($app)(ctx)));
             let theme: PelicanTheme = app.borrow().theme().to_pelican(assets.all());
-            let roots = app.borrow().roots(ctx, &ChkBuilder::new(theme));
+            let roots = app.borrow().roots(ctx, &ChkBuilder::new(&theme));
             let app = Rc::clone(&app);
             let on_event = Box::new(move |d: &mut Box<dyn Drawable>, ctx: &mut Context, event: Box<dyn Event>| app.borrow_mut().on_event(ctx, event));
-            Interface::new(theme, roots, on_event)
+            Interface::new(&theme, roots, on_event)
         });
     }
 }

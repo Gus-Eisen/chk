@@ -279,12 +279,16 @@ impl FormPage {
     pub fn on_change(&mut self, new: Vec<FlowStorageObject>) {
         let builder = &self.2;
         let submit = self.4.clone();
-        self.1.bumper = Some(PelicanBumper::stack(builder.theme(), None, self.3.clone().map(|n| {
-            Box::new(move |ctx: &mut Context, theme: &Theme| {
+        let closure: Box<dyn Callback> = match self.3.clone(){
+            Some(nav) => Box::new(move |ctx: &mut Context, theme: &Theme| {
                 if let Some(mut on_submit) = submit.clone() {(on_submit)(ctx, &new);}
-                (n.borrow_mut())(ctx, theme);
-            }) as Box<dyn Callback>
-        }).unwrap_or(Box::new(|_ctx: &mut Context, _theme: &Theme| {})), None));
+                (nav.borrow_mut())(ctx, theme);
+            }),
+            None => Box::new(move |ctx: &mut Context, theme: &Theme| {
+                if let Some(mut on_submit) = submit.clone() {(on_submit)(ctx, &new);}
+            }),
+        };
+        self.1.bumper = Some(PelicanBumper::stack(builder.theme(), None, closure, None));
     }
 }
 

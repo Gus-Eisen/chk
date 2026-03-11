@@ -69,7 +69,7 @@ impl Input {
         })
     }
 
-    pub fn store_in(child: &dyn Drawable, state: &mut Vec<FlowStorageObject>) {
+    pub fn store_in(child: &Box<dyn Drawable>, state: &mut Vec<FlowStorageObject>) {
         if let Some(input) = child.downcast_ref::<TextInput>() {
             state.push(FlowStorageObject::Text(input.value()));
         } else if let Some(selector) = child.downcast_ref::<RadioSelector>() {

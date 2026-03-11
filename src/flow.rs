@@ -201,10 +201,6 @@ impl Flow{
     }
 }
 
-// need to add a review page that takes in the vector of storage objects.
-// need to add a success page. 
-// need to add a on_submit function
-
 #[derive(Debug, Clone)]
 pub enum FlowStorageObject {
     Text(String),
@@ -226,15 +222,21 @@ impl OnEvent for FlowWrapper {
             } else {
                 let index = self.1.index;
                 self.2 = Vec::new();
+
+                if self.1.stored.is_empty() && let Some(screen) = self.1.current.as_mut().unwrap().downcast_mut::<Screen>() && let Some(page) = screen.1.downcast_mut::<FormPage>() {
+                    page.1.content.children().iter().for_each(|child| Input::store_in(child, &mut self.2));
+                    page.on_change(self.2.clone());
+                }
+
                 for (i, each) in self.1.stored.iter_mut().enumerate() {
                     if i == index && let Some(screen) = self.1.current.as_mut().unwrap().downcast_mut::<Screen>() && let Some(page) = screen.1.downcast_mut::<FormPage>() {
-                        page.on_change(self.2.clone());
                         page.1.content.children().iter().for_each(|child| Input::store_in(child, &mut self.2));
+                        page.on_change(self.2.clone());
                     }
 
                     if let Some(screen) = each.downcast_mut::<Screen>() && let Some(page) = screen.1.downcast_mut::<FormPage>() {
-                        page.on_change(self.2.clone());
                         page.1.content.children().iter().for_each(|child| Input::store_in(child, &mut self.2));
+                        page.on_change(self.2.clone());
                     }
                 }
             }
