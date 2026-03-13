@@ -1,9 +1,8 @@
 [package]
-name = "demo"
+name = "orange"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-chk = {path="../../chk"}
-image = "0.25.9"
 ramp = {package="ramp2", path="../../ramp"}
+chk = {package="chk", path="../"}

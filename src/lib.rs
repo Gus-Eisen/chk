@@ -1,6 +1,6 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/ramp-stack/chk/main/logo.png")]
 
-pub use pelican_ui::{Context, event::{OnEvent, Event}, layout::Offset, interface::navigation::RootInfo, theme::Color, image};
+pub use pelican_ui::{Context, event::{OnEvent, Event}, layout::Offset, interface::navigation::RootInfo, theme::{Color, Icons}, image};
 use pelican_ui::theme::Theme as PelicanTheme;
 
 pub mod closure;

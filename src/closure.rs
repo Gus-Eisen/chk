@@ -1,5 +1,5 @@
 #![allow(clippy::type_complexity)]
-use pelican_ui::{Context, theme::Theme};
+use pelican_ui::{Context, theme::{Theme, Icons}};
 use crate::page::{Screen, PageType};
 use crate::{ChkBuilder, FormStorage, Display};
 use crate::flow::FlowStorageObject;
@@ -226,11 +226,11 @@ impl std::fmt::Debug for dyn ReviewItemGetter {
     }
 }
 
-pub trait SuccessGetter: FnMut(Vec<FlowStorageObject>) -> (String, String) + 'static {
+pub trait SuccessGetter: FnMut(Vec<FlowStorageObject>) -> (Icons, String) + 'static {
     fn clone_box(&self) -> Box<dyn SuccessGetter>;
 }
 
-impl<F> SuccessGetter for F where F: FnMut(Vec<FlowStorageObject>) -> (String, String) + Clone + 'static {
+impl<F> SuccessGetter for F where F: FnMut(Vec<FlowStorageObject>) -> (Icons, String) + Clone + 'static {
     fn clone_box(&self) -> Box<dyn SuccessGetter> {
         Box::new(self.clone())
     }

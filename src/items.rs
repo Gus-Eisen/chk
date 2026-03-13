@@ -1,7 +1,7 @@
 use pelican_ui::{drawables, colors, Context, Callback};
 use pelican_ui::drawable::Drawable;
 use pelican_ui::canvas::{Align, RgbaImage, ShapeType, Image};
-use pelican_ui::theme::Theme;
+use pelican_ui::theme::{Theme, Icons};
 use pelican_ui::utils::{TitleSubtitle};
 use pelican_ui::components::list_item::{ListItemSection, ListItemInfoLeft, ListItem as PelicanListItem};
 use pelican_ui::components::{TextInput, RadioSelector, Icon, DataItem, QRCode, NumericalInput};
@@ -23,7 +23,7 @@ pub enum Input {
     Date {instructions: String}, //, on_edited: Box<dyn EditedFn>},
     Time {instructions: String}, //, on_edited: Box<dyn EditedFn>},
     Enumerator {items: Vec<EnumItem>},
-    Avatar {content: AvatarContent, flair: Option<(String, AvatarIconStyle)>, action: Option<Action>},
+    Avatar {content: AvatarContent, flair: Option<(Icons, AvatarIconStyle)>, action: Option<Action>},
     Search {items: Vec<ListItem>}
 }
 
@@ -48,7 +48,7 @@ impl Input {
         Input::Text {label: label.to_string(), show_label, preset, actions}
     }
 
-    pub fn avatar(content: AvatarContent, flair: Option<(String, AvatarIconStyle)>, action: Option<Action>) -> Self {
+    pub fn avatar(content: AvatarContent, flair: Option<(Icons, AvatarIconStyle)>, action: Option<Action>) -> Self {
         Input::Avatar {content, flair, action}
     }
 
@@ -64,11 +64,12 @@ impl Input {
             Input::Currency {instructions} => drawables![NumericalInput::numerical(theme, instructions)],
             Input::Date {instructions} => drawables![NumericalInput::date(theme, instructions)],
             Input::Time {instructions} => drawables![NumericalInput::time(theme, instructions)],
-            Input::Avatar {content, flair, action} => drawables![Avatar::new(theme, content.clone(), flair.clone(), flair.is_some(), AvatarSize::Xxl, action.as_ref().map(|a| a.get()))],
+            Input::Avatar {content, flair, action} => drawables![Avatar::new(theme, content.clone(), *flair, flair.is_some(), AvatarSize::Xxl, action.as_ref().map(|a| a.get()))],
             Input::Search {items} => drawables![SearchBar::new(theme, items.iter().map(|item| item.build(builder)).collect::<Vec<_>>())]
         })
     }
 
+    #[allow(clippy::borrowed_box)]
     pub fn store_in(child: &Box<dyn Drawable>, state: &mut Vec<FlowStorageObject>) {
         if let Some(input) = child.downcast_ref::<TextInput>() {
             state.push(FlowStorageObject::Text(input.value()));
@@ -87,7 +88,7 @@ impl Input {
 #[derive(Debug, Clone)]
 pub enum Display {
     Text {text: String, size: TextSize, style: TextStyle, align: Align},
-    Icon {icon: String},
+    Icon {icon: Icons},
     Image {image: Arc<RgbaImage>, size: (f32, f32)},
     Review {label: String, data: String, instructions: String},
     Table {label: String, items: Vec<TableItem>},
@@ -111,8 +112,8 @@ impl Display {
         Display::Text {text: text.to_string(), size: TextSize::H5, style: TextStyle::Heading, align: Align::Left}
     }
 
-    pub fn icon(icon: &str) -> Self {
-        Display::Icon {icon: icon.to_string()}
+    pub fn icon(icon: Icons) -> Self {
+        Display::Icon {icon}
     }
 
     pub fn image(image: Arc<RgbaImage>, size: (f32, f32)) -> Self {
@@ -150,7 +151,7 @@ impl Display {
     pub fn build(&mut self, builder: &ChkBuilder) -> Option<Vec<Box<dyn Drawable>>> {
         let theme: &Theme = builder.theme();
         Some(match self {
-            Display::Icon {icon} => drawables![Icon::new(theme, icon, Some(theme.colors().get(colors::Text::Heading)), 128.0)],
+            Display::Icon {icon} => drawables![Icon::new(theme, *icon, Some(theme.colors().get(colors::Text::Heading)), 128.0)],
             Display::Image {image, size} => drawables![Image{shape: ShapeType::Rectangle(0.0, *size, 0.0), image: image.clone(), color: None}],
             Display::Text {text, size, style, align} if !text.is_empty() => drawables![ExpandableText::new(theme, text, *size, *style, *align, None)],
             Display::Review {label, data, instructions} => drawables![DataItem::text(theme, label, data, instructions, Some(Vec::<(String, Option<String>, Box<dyn Callback>)>::new()))],
@@ -160,7 +161,7 @@ impl Display {
             Display::List {label, items, ..} => drawables![ListItemSection::new(theme, label.clone(), items.iter_mut().map(|item| item.build(builder)).collect::<Vec<_>>())],
             Display::QRCode {data, instructions} => drawables![QRCode::new(theme, data), ExpandableText::new(theme, instructions, TextSize::Md, TextStyle::Secondary, Align::Center, None)],
             Display::Avatar {content} => drawables![Avatar::new(theme, content.clone(), None, false, AvatarSize::Xxl, None)],
-            Display::Actions {actions} => actions.iter_mut().map(|ActionItem(a, l, i)| Box::new(SecondaryButton::medium(theme, i, l, None, a.get())) as Box<dyn Drawable>).collect::<Vec<_>>(),
+            Display::Actions {actions} => actions.iter_mut().map(|ActionItem(a, l, i)| Box::new(SecondaryButton::medium(theme, *i, l, None, a.get())) as Box<dyn Drawable>).collect::<Vec<_>>(),
             _ => return None
         })
     }
@@ -217,7 +218,7 @@ impl ListItem {
         PelicanListItem::new(theme, avatar.clone(), 
             ListItemInfoLeft::new(&title, Some(&subtitle), None, None), 
             secondary.as_ref().map(|s| TitleSubtitle::new(s, Some("Details"))), 
-            None, has_flow.then_some("forward"), closure
+            None, has_flow.then_some(Icons::Forward), closure
         )
     }
 }
@@ -295,10 +296,10 @@ impl Action {
 
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ActionItem(Action, String, String);
+pub struct ActionItem(Action, String, Icons);
 impl ActionItem {
-    pub fn new(action: Action, label: &str, icon: &str) -> Self {
-        ActionItem(action, label.to_string(), icon.to_string())
+    pub fn new(action: Action, label: &str, icon: Icons) -> Self {
+        ActionItem(action, label.to_string(), icon)
     }
 }
 
