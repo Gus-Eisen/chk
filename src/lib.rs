@@ -1,7 +1,8 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/ramp-stack/chk/main/logo.png")]
 
-pub use pelican_ui::{Context, event::{OnEvent, Event}, layout::Offset, interface::navigation::RootInfo, theme::{Color, Icons}, image};
-use pelican_ui::theme::Theme as PelicanTheme;
+pub use pelican_ui::{Context, event::{OnEvent, Event}, layout::Offset, theme::{Theme, Color, Icons}, image};
+
+use pelican_ui::interface::navigation::RootInfo as PelicanRootInfo;
 
 pub mod closure;
 pub use closure::*;
@@ -12,35 +13,39 @@ pub use items::*;
 pub mod page;
 pub use page::*;
 
-// #[derive(Clone, Debug)]
-// pub struct ChkBuilder(PelicanTheme);
-// impl ChkBuilder {
-//     pub fn new(theme: &PelicanTheme) -> Self {Self(theme.clone())}
-//     pub fn theme(&self) -> &PelicanTheme {&self.0}
-// }
+pub struct RootInfo(pub PelicanRootInfo);
+impl RootInfo {
+    pub fn icon(ctx: &mut Context, theme: &Theme, icon: Icons, label: &str, page: PageType) -> RootInfo {
+        RootInfo(PelicanRootInfo::icon(icon, label, page.build(ctx, theme)))
+    }
+
+    pub fn avatar(ctx: &mut Context, theme: &Theme, avatar: AvatarContent, label: &str, page: PageType) -> RootInfo {
+        RootInfo(PelicanRootInfo::avatar(avatar, label, page.build(ctx, theme)))
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
-pub enum Theme {
+pub enum ChkTheme {
     Dark(Color),
     Light(Color),
     Auto(Color),
 }
 
-impl Theme {
-    pub fn to_pelican(self, assets: &include_dir::Dir<'static>) -> PelicanTheme {
+impl ChkTheme {
+    pub fn to_pelican(self, assets: &include_dir::Dir<'static>) -> Theme {
         match self {
-            Theme::Dark(c) => PelicanTheme::dark(assets, c),
-            Theme::Light(c) => PelicanTheme::light(assets, c),
-            Theme::Auto(c) => PelicanTheme::from(assets, c)
+            ChkTheme::Dark(c) => Theme::dark(assets, c),
+            ChkTheme::Light(c) => Theme::light(assets, c),
+            ChkTheme::Auto(c) => Theme::from(assets, c)
         }
     }
 }
 
-impl Default for Theme { fn default() -> Self {Theme::Dark(Color::from_hex("#ffdd00", 255))} }
+impl Default for ChkTheme { fn default() -> Self {ChkTheme::Dark(Color::from_hex("#ffdd00", 255))} }
 
 pub trait App {
     fn roots(&self, ctx: &mut Context, theme: &Theme) -> Vec<RootInfo>;
-    fn theme(&self) -> Theme { Theme::default() }
+    fn theme(&self) -> ChkTheme { ChkTheme::default() }
     fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { vec![event] }
 }
 
@@ -48,12 +53,13 @@ pub trait App {
 pub mod __private {
     pub use ramp;
     pub use ramp::prism;
-    pub use pelican_ui::theme::Theme as PelicanTheme;
+    pub use pelican_ui::theme::Theme;
     pub use pelican_ui::Context;
     pub use pelican_ui::event::Event;
-    pub use pelican_ui::interface::general::Interface;
+    pub use pelican_ui::interface::{general::Interface, navigation::RootInfo as PelicanRootInfo};
     pub use chk::App;
-    pub use chk::Theme;
+    pub use chk::ChkTheme;
+    pub use chk::RootInfo;
     pub use std::rc::Rc;
     pub use std::cell::RefCell;
 }
@@ -66,8 +72,9 @@ macro_rules! run {
         use $crate::__private::*;
         ramp::run!(move |ctx: &mut Context, assets: Assets| {
             let app: Rc<RefCell<dyn App>> = Rc::new(RefCell::new(($app)(ctx)));
-            let theme: PelicanTheme = app.borrow().theme().to_pelican(assets.all());
-            let roots = app.borrow().roots(ctx, &ChkBuilder::new(&theme));
+            let theme: Theme = app.borrow().theme().to_pelican(assets.all());
+            let roots: Vec<RootInfo> = app.borrow().roots(ctx, &theme);
+            let roots = roots.into_iter().map(|root| root.0).collect::<Vec<PelicanRootInfo>>();
             let app = Rc::clone(&app);
             let on_event = Box::new(move |d: &mut Box<dyn Drawable>, ctx: &mut Context, event: Box<dyn Event>| app.borrow_mut().on_event(ctx, event));
             Interface::new(&theme, roots, on_event)

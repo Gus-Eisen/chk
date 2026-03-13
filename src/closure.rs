@@ -1,8 +1,9 @@
 #![allow(clippy::type_complexity)]
-use pelican_ui::{Context, theme::{Theme, Icons}};
+use pelican_ui::{Context, theme::{Icons}};
 use crate::page::{Screen, PageType};
 use crate::{FormStorage, Display};
 use crate::flow::FlowStorageObject;
+use pelican_ui::theme::Theme;
 
 use std::rc::Rc;
 use std::cell::RefCell;

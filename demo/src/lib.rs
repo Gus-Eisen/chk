@@ -7,8 +7,8 @@ mod state;
 pub use state::*;
 
 use chk::{
-    RootInfo, FormItem, NumberVariant, Flow, Bumper,
-    Display, Offset, Context, Screen, PageType, PageBuilder, Icons,
+    RootInfo, FormItem, NumberVariant, Flow, Bumper, ChkTheme, AvatarIconStyle,
+    Display, Offset, Context, Screen, PageType, PageBuilder, Icons, AvatarContent,
     Color, Theme, Form, Root, FlowStorageObject, Review, Success, Message, Profile, FormSubmit,
 };
 
@@ -20,12 +20,13 @@ pub struct Orange;
 impl chk::App for Orange {
     fn roots(&self, ctx: &mut Context, theme: &Theme) -> Vec<RootInfo> {
         vec![
-            RootInfo::icon(ctx, theme, Icons::Wallet, "Wallet", BitcoinHome::new(theme)), //BitcoinHome::new(builder).build(ctx, builder)
-            RootInfo::icon(ctx, theme, Icons::Messages, "Messages", MessagesHome::new(theme))
+            RootInfo::icon(ctx, theme, Icons::Wallet, "Wallet", BitcoinHome::new(theme)),
+            RootInfo::icon(ctx, theme, Icons::Messages, "Messages", MessagesHome::new(theme)),
+            RootInfo::avatar(ctx, theme, AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary), "Profile", MessagesHome::new(theme))
         ]
     }
 
-    fn theme(&self) -> Theme {Theme::Dark(Color::from_hex("#eb343a", 255))}
+    fn theme(&self) -> ChkTheme {ChkTheme::Dark(Color::from_hex("#eb343a", 255))}
 }
 
 #[derive(Debug, Clone)]

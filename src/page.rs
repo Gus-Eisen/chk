@@ -51,7 +51,7 @@ impl Screen {
         self.1 = page_type.build(ctx, theme);
     }
 
-    pub fn new_builder(theme: &Theme, page_builder: Box<dyn PageBuilder>) -> Box<dyn ScreenBuilder> {
+    pub fn new_builder(theme: &crate::Theme, page_builder: Box<dyn PageBuilder>) -> Box<dyn ScreenBuilder> {
         let theme = theme.clone();
         Box::new(move |ctx: &mut Context| Screen::new(ctx, &theme.clone(), page_builder.clone())) as Box<dyn ScreenBuilder>
     }
@@ -316,11 +316,11 @@ impl ReviewPage {
 
         let mut on_submit = self.5.clone();
         self.1.bumper = Some(PelicanBumper::stack(theme, None, self.4.clone().map(|n| {
-            Box::new(move |ctx: &mut Context, theme: &Theme| {
+            Box::new(move |ctx: &mut Context, theme: &crate::Theme| {
                 (on_submit)(ctx, &new);
                 (n.borrow_mut())(ctx, theme);
             }) as Box<dyn Callback>
-        }).unwrap_or(Box::new(|_ctx: &mut Context, _theme: &Theme| {})), None));
+        }).unwrap_or(Box::new(|_ctx: &mut Context, _theme: &crate::Theme| {})), None));
     }
 }
 
