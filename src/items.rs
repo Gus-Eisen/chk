@@ -13,7 +13,6 @@ use pelican_ui::components::SearchBar;
 
 use std::sync::Arc;
 
-use crate::ChkBuilder;
 use crate::flow::{Flow, FlowStorageObject};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -56,8 +55,7 @@ impl Input {
         Input::Search {items}
     }
 
-    pub fn build(&self, builder: &ChkBuilder) -> Option<Vec<Box<dyn Drawable>>> {
-        let theme: &Theme = builder.theme();
+    pub fn build(&self, theme: &Theme) -> Option<Vec<Box<dyn Drawable>>> {
         Some(match self {
             Input::Text {show_label, label, preset, ..} => drawables![TextInput::new(theme, preset.as_deref(), show_label.then_some(label), Some(&format!("Enter {}...", label.to_lowercase())), None, None)],
             Input::Enumerator {items} => drawables![RadioSelector::new(theme, 0, items.iter().map(|item| item.get()).collect::<Vec<_>>())],
@@ -65,7 +63,7 @@ impl Input {
             Input::Date {instructions} => drawables![NumericalInput::date(theme, instructions)],
             Input::Time {instructions} => drawables![NumericalInput::time(theme, instructions)],
             Input::Avatar {content, flair, action} => drawables![Avatar::new(theme, content.clone(), *flair, flair.is_some(), AvatarSize::Xxl, action.as_ref().map(|a| a.get()))],
-            Input::Search {items} => drawables![SearchBar::new(theme, items.iter().map(|item| item.build(builder)).collect::<Vec<_>>())]
+            Input::Search {items} => drawables![SearchBar::new(theme, items.iter().map(|item| item.build(theme)).collect::<Vec<_>>())]
         })
     }
 
@@ -148,8 +146,7 @@ impl Display {
         Display::Actions {actions}
     }
 
-    pub fn build(&mut self, builder: &ChkBuilder) -> Option<Vec<Box<dyn Drawable>>> {
-        let theme: &Theme = builder.theme();
+    pub fn build(&mut self, theme: &Theme) -> Option<Vec<Box<dyn Drawable>>> {
         Some(match self {
             Display::Icon {icon} => drawables![Icon::new(theme, *icon, Some(theme.colors().get(colors::Text::Heading)), 128.0)],
             Display::Image {image, size} => drawables![Image{shape: ShapeType::Rectangle(0.0, *size, 0.0), image: image.clone(), color: None}],
@@ -158,7 +155,7 @@ impl Display {
             Display::Table {label, items} => drawables![DataItem::table(theme, label, items.iter().map(|TableItem{title, data}| (title.clone(), data.clone())).collect(), Some(Vec::<(String, Option<String>, Box<dyn Callback>)>::new()))],
             Display::Currency {amount, instructions} => drawables![NumericalInput::display(theme, *amount, instructions)],
             Display::List {items, instructions, ..} if items.is_empty() => drawables![ExpandableText::new(theme, instructions.as_ref()?, TextSize::Md, TextStyle::Secondary, Align::Center, None)],
-            Display::List {label, items, ..} => drawables![ListItemSection::new(theme, label.clone(), items.iter_mut().map(|item| item.build(builder)).collect::<Vec<_>>())],
+            Display::List {label, items, ..} => drawables![ListItemSection::new(theme, label.clone(), items.iter_mut().map(|item| item.build(theme)).collect::<Vec<_>>())],
             Display::QRCode {data, instructions} => drawables![QRCode::new(theme, data), ExpandableText::new(theme, instructions, TextSize::Md, TextStyle::Secondary, Align::Center, None)],
             Display::Avatar {content} => drawables![Avatar::new(theme, content.clone(), None, false, AvatarSize::Xxl, None)],
             Display::Actions {actions} => actions.iter_mut().map(|ActionItem(a, l, i)| Box::new(SecondaryButton::medium(theme, *i, l, None, a.get())) as Box<dyn Drawable>).collect::<Vec<_>>(),
@@ -206,7 +203,7 @@ impl ListItem {
         }
     }
 
-    pub(crate) fn build(&self, builder: &ChkBuilder) -> PelicanListItem {
+    pub(crate) fn build(&self, theme: &Theme) -> PelicanListItem {
         let ListItem {avatar, title, subtitle, secondary, flow} = self.clone();
         let has_flow = flow.is_some();
         let closure = Box::new(move |ctx: &mut Context, theme: &Theme| {
@@ -214,7 +211,6 @@ impl ListItem {
             if let Some(mut f) = flow.clone() {(f.build(ctx))(ctx, theme);}
         });
 
-        let theme: &Theme = builder.theme();
         PelicanListItem::new(theme, avatar.clone(), 
             ListItemInfoLeft::new(&title, Some(&subtitle), None, None), 
             secondary.as_ref().map(|s| TitleSubtitle::new(s, Some("Details"))), 

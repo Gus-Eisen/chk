@@ -12,12 +12,12 @@ pub use items::*;
 pub mod page;
 pub use page::*;
 
-#[derive(Clone, Debug)]
-pub struct ChkBuilder(PelicanTheme);
-impl ChkBuilder {
-    pub fn new(theme: &PelicanTheme) -> Self {Self(theme.clone())}
-    pub fn theme(&self) -> &PelicanTheme {&self.0}
-}
+// #[derive(Clone, Debug)]
+// pub struct ChkBuilder(PelicanTheme);
+// impl ChkBuilder {
+//     pub fn new(theme: &PelicanTheme) -> Self {Self(theme.clone())}
+//     pub fn theme(&self) -> &PelicanTheme {&self.0}
+// }
 
 #[derive(Clone, Copy, Debug)]
 pub enum Theme {
@@ -39,7 +39,7 @@ impl Theme {
 impl Default for Theme { fn default() -> Self {Theme::Dark(Color::from_hex("#ffdd00", 255))} }
 
 pub trait App {
-    fn roots(&self, ctx: &mut Context, theme: &ChkBuilder) -> Vec<RootInfo>;
+    fn roots(&self, ctx: &mut Context, theme: &Theme) -> Vec<RootInfo>;
     fn theme(&self) -> Theme { Theme::default() }
     fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { vec![event] }
 }
@@ -53,7 +53,6 @@ pub mod __private {
     pub use pelican_ui::event::Event;
     pub use pelican_ui::interface::general::Interface;
     pub use chk::App;
-    pub use chk::ChkBuilder;
     pub use chk::Theme;
     pub use std::rc::Rc;
     pub use std::cell::RefCell;

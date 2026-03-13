@@ -1,7 +1,7 @@
 #![allow(clippy::type_complexity)]
 use pelican_ui::{Context, theme::{Theme, Icons}};
 use crate::page::{Screen, PageType};
-use crate::{ChkBuilder, FormStorage, Display};
+use crate::{FormStorage, Display};
 use crate::flow::FlowStorageObject;
 
 use std::rc::Rc;
@@ -92,11 +92,11 @@ impl std::fmt::Debug for NavFn {
     }
 }
 
-pub trait PageBuilder: FnMut(&ChkBuilder) -> PageType + 'static {
+pub trait PageBuilder: FnMut(&Theme) -> PageType + 'static {
     fn clone_box(&self) -> Box<dyn PageBuilder>;
 }
 
-impl<F> PageBuilder for F where F: FnMut(&ChkBuilder) -> PageType + Clone + 'static {
+impl<F> PageBuilder for F where F: FnMut(&Theme) -> PageType + Clone + 'static {
     fn clone_box(&self) -> Box<dyn PageBuilder> {
         Box::new(self.clone())
     }

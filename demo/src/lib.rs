@@ -9,7 +9,7 @@ pub use state::*;
 use chk::{
     RootInfo, FormItem, NumberVariant, Flow, Bumper,
     Display, Offset, Context, Screen, PageType, PageBuilder, Icons,
-    Color, Theme, ChkBuilder, Form, Root, FlowStorageObject, Review, Success, Message, Profile, FormSubmit,
+    Color, Theme, Form, Root, FlowStorageObject, Review, Success, Message, Profile, FormSubmit,
 };
 
 use chk::items::{ListItem, Action, TableItem};
@@ -18,10 +18,10 @@ chk::run! { |_ctx: &mut Context| Orange }
 
 pub struct Orange;
 impl chk::App for Orange {
-    fn roots(&self, ctx: &mut Context, builder: &ChkBuilder) -> Vec<RootInfo> {
+    fn roots(&self, ctx: &mut Context, theme: &Theme) -> Vec<RootInfo> {
         vec![
-            RootInfo::icon(Icons::Wallet, "Wallet", BitcoinHome::new(builder).build(ctx, builder)),
-            RootInfo::icon(Icons::Messages, "Messages", MessagesHome::new(builder).build(ctx, builder))
+            RootInfo::icon(ctx, theme, Icons::Wallet, "Wallet", BitcoinHome::new(theme)), //BitcoinHome::new(builder).build(ctx, builder)
+            RootInfo::icon(ctx, theme, Icons::Messages, "Messages", MessagesHome::new(theme))
         ]
     }
 
@@ -32,16 +32,16 @@ impl chk::App for Orange {
 pub struct BitcoinHome;
 
 impl BitcoinHome {
-    fn new(builder: &ChkBuilder) -> PageType {
+    fn new(theme: &Theme) -> PageType {
         let items = Transaction::test().iter().map(|t| {
             let _task = t.clone();
             let title = if t.is_received {"Received bitcoin"} else {"Sent bitcoin"};
-            let view = vec![Screen::new_builder(builder, ViewTransaction::new(t.clone()))];
+            let view = vec![Screen::new_builder(theme, ViewTransaction::new(t.clone()))];
             ListItem::plain(title, &t.date, Some(&t.amount.usd), Some(Flow::new(view)))
         }).collect();
 
-        let send = SendFlow::new(builder);
-        let receive = vec![Screen::new_builder(builder, Receive::new())];
+        let send = SendFlow::new(theme);
+        let receive = vec![Screen::new_builder(theme, Receive::new())];
 
         Root::new("Wallet",
             vec![
@@ -56,7 +56,7 @@ impl BitcoinHome {
 pub struct Receive;
 impl Receive {
     pub fn new() -> Box<dyn PageBuilder> {
-        Box::new(|_builder: &ChkBuilder| {
+        Box::new(|_: &Theme| {
             PageType::display(
                 "Receive bitcoin",
                 vec![Display::qr_code(&Address::generate(), "Scan to receive bitcoin.")],
@@ -71,7 +71,7 @@ impl Receive {
 pub struct ViewTransaction;
 impl ViewTransaction {
     pub fn new(transaction: Transaction) -> Box<dyn PageBuilder> {
-        Box::new(move |_builder: &ChkBuilder| {
+        Box::new(move |_: &Theme| {
             let direction = if transaction.is_received {"Received"} else {"Sent"};
             PageType::display(
                 &format!("{direction} bitcoin"),
@@ -86,7 +86,7 @@ impl ViewTransaction {
 
 pub struct SendFlow;
 impl SendFlow {
-    pub fn new(builder: &ChkBuilder) -> Form {
+    pub fn new(theme: &Theme) -> Form {
         let closure = Box::new(move |_ctx: &mut Context, objects: &Vec<FlowStorageObject>| {println!("Transaction {:?}", objects)}) as Box<dyn FormSubmit>;
 
         let review = |objects: &Vec<FlowStorageObject>| {
@@ -117,7 +117,7 @@ impl SendFlow {
             (Icons::Bitcoin, format!("You sent {}", amount))
         };
         
-        Form::new(builder, vec![
+        Form::new(theme, vec![
             FormItem::text("Bitcoin address"),
             FormItem::number("Bitcoin amount", NumberVariant::Currency), // change to NumberVariant::Currency
             FormItem::enumerator("Transaction speed", vec![
@@ -133,13 +133,13 @@ impl SendFlow {
 #[derive(Debug, Clone)]
 pub struct MessagesHome;
 impl MessagesHome {
-    fn new(builder: &ChkBuilder) -> PageType {
+    fn new(theme: &Theme) -> PageType {
         let messages = Message::tests();
         let message = messages[0].clone();
-        let chat = vec![Screen::new_builder(builder, Chat::new(messages))];
+        let chat = vec![Screen::new_builder(theme, Chat::new(messages))];
         let items = vec![ListItem::avatar(message.author.avatar(), &message.author.name, &message.message, None, Some(Flow::new(chat)))];
 
-        let new_message = NewMessageFlow::new(builder);
+        let new_message = NewMessageFlow::new(theme);
         // let receive = vec![Screen::new_builder(builder, Receive::new())];
 
         Root::new("Messages",
@@ -152,14 +152,14 @@ impl MessagesHome {
 
 pub struct NewMessageFlow;
 impl NewMessageFlow {
-    pub fn new(builder: &ChkBuilder) -> Form {
+    pub fn new(theme: &Theme) -> Form {
         let closure = Box::new(move |_ctx: &mut Context, objects: &Vec<FlowStorageObject>| {
             println!("New Message {:?}", objects);
             // navigate to the next flow here.
         }) as Box<dyn FormSubmit>;
 
         let items = Profile::more_tests().into_iter().map(|profile| ListItem::avatar(profile.avatar(), &profile.name, "did address here", None, None)).collect::<Vec<_>>();
-        Form::new(builder, vec![FormItem::search("Select recipient", items)], None, None, closure)
+        Form::new(theme, vec![FormItem::search("Select recipient", items)], None, None, closure)
     }
 }
 
@@ -167,7 +167,7 @@ impl NewMessageFlow {
 pub struct Chat;
 impl Chat {
     pub fn new(messages: Vec<Message>) -> Box<dyn PageBuilder> {
-        Box::new(move |_builder: &ChkBuilder| {
+        Box::new(move |_builder: &Theme| {
             let profiles = messages.clone().into_iter().map(|m| m.author).collect::<HashSet<_>>().into_iter().collect::<Vec<_>>();
             PageType::messaging(messages.clone(), profiles)
         })

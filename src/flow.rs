@@ -13,7 +13,6 @@ use crate::items::{EnumItem, Input, ListItem};
 use crate::page::{PageType, FormPage, ReviewPage, SuccessPage};
 use crate::closure::{FormSubmit, FormClosure, NavFn, ScreenBuilder, PageBuilder, ReviewItemGetter, SuccessGetter};
 use crate::page::Screen;
-use crate::ChkBuilder;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -22,7 +21,7 @@ use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
 pub struct Form {
-    builder: ChkBuilder,
+    theme: Theme,
     inputs: Vec<FormItem>,
     review: Option<Review>,
     success: Option<Success>,
@@ -30,10 +29,10 @@ pub struct Form {
 }
 
 impl Form {
-    pub fn new(builder: &ChkBuilder, inputs: Vec<FormItem>, review: Option<Review>, success: Option<Success>, on_submit: Box<dyn FormSubmit>) -> Self {
+    pub fn new(theme: &Theme, inputs: Vec<FormItem>, review: Option<Review>, success: Option<Success>, on_submit: Box<dyn FormSubmit>) -> Self {
         Form {
             inputs,
-            builder: builder.clone(),
+            theme: theme.clone(),
             review,
             success,
             on_submit,
@@ -137,31 +136,31 @@ impl Flow{
     }
 
     pub fn from_form(form: Form) -> Self {
-        let builder = form.builder;
+        let theme = form.theme;
         let mut pages: Vec<Box<dyn ScreenBuilder>> = vec![];
 
         let mut submit = form.review.is_none().then(|| form.on_submit.clone());
         form.inputs.into_iter().rev().map(|input| {
             let submit = submit.take();
-            let page = Box::new(move |_b: &ChkBuilder| PageType::form(&input.title(), input.build(), submit.clone())) as Box<dyn PageBuilder>;
-            Screen::new_builder(&builder, page)
+            let page = Box::new(move |_: &Theme| PageType::form(&input.title(), input.build(), submit.clone())) as Box<dyn PageBuilder>;
+            Screen::new_builder(&theme, page)
         }).collect::<Vec<Box<dyn ScreenBuilder>>>().into_iter().rev().for_each(|s| pages.push(s));
 
         if let Some(review) = form.review {
-            let review = Box::new(move |_: &ChkBuilder| {
+            let review = Box::new(move |_: &Theme| {
                 let review = review.clone();
                 PageType::review(&review.title, review.getter, form.on_submit.clone())
             }) as Box<dyn PageBuilder>;
 
-            pages.push(Screen::new_builder(&builder, review));
+            pages.push(Screen::new_builder(&theme, review));
         }
 
         if let Some(success) = form.success {
-            let success = Box::new(move |_: &ChkBuilder| {
+            let success = Box::new(move |_: &Theme| {
                 let success = success.clone();
                 PageType::success(&success.title, success.getter)
             }) as Box<dyn PageBuilder>;
-            pages.push(Screen::new_builder(&builder, success));
+            pages.push(Screen::new_builder(&theme, success));
         }
 
         // if let Some(r) = form.review() {pages.push(Screen::new_builder(builder, Review(r)));}
