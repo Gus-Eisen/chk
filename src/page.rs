@@ -17,7 +17,7 @@ pub use pelican_ui::components::{Profile, Message};
 use std::fmt::Debug;
 
 use crate::FlowWrapper;
-use crate::flow::{Flow, FlowStorageObject};
+use crate::flow::{Flow, State};
 use crate::items::{Action, Input, Display};
 use crate::closure::{FormSubmit, NavFn, ScreenBuilder, PageBuilder, ReviewItemGetter, SuccessGetter};
 
@@ -273,7 +273,7 @@ impl FormPage {
         FormPage(Stack::default(), page, theme.clone(), next.clone(), on_submit.clone())
     }
 
-    pub fn on_change(&mut self, new: Vec<FlowStorageObject>) {
+    pub fn on_change(&mut self, new: Vec<State>) {
         let theme = &self.2;
         let submit = self.4.clone();
         let closure: Box<dyn Callback> = match self.3.clone(){
@@ -308,7 +308,7 @@ impl ReviewPage {
         ReviewPage(Stack::default(), page, item_getter, theme.clone(), next.clone(), on_submit.clone())
     }
 
-    pub fn on_change(&mut self, new: Vec<FlowStorageObject>) {
+    pub fn on_change(&mut self, new: Vec<State>) {
         let theme = &self.3;
         let items = (self.2)(&new);
         let content = items.into_iter().filter_map(|mut i| i.build(theme)).flatten().collect::<Vec<Box<dyn Drawable>>>();
@@ -341,7 +341,7 @@ impl SuccessPage {
         SuccessPage(Stack::default(), page, getter, theme.clone())
     }
 
-    pub fn on_change(&mut self, new: Vec<FlowStorageObject>) {
+    pub fn on_change(&mut self, new: Vec<State>) {
         use pelican_ui::colors;
         use pelican_ui::components::Icon;
         let theme = self.3.clone();

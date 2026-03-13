@@ -2,7 +2,7 @@
 use pelican_ui::{Context, theme::{Icons}};
 use crate::page::{Screen, PageType};
 use crate::{FormStorage, Display};
-use crate::flow::FlowStorageObject;
+use crate::flow::State;
 use pelican_ui::theme::Theme;
 
 use std::rc::Rc;
@@ -205,11 +205,11 @@ impl std::fmt::Debug for dyn FormClosure {
     }
 }
 
-pub trait ReviewItemGetter: FnMut(&Vec<FlowStorageObject>) -> Vec<Display> + 'static {
+pub trait ReviewItemGetter: FnMut(&Vec<State>) -> Vec<Display> + 'static {
     fn clone_box(&self) -> Box<dyn ReviewItemGetter>;
 }
 
-impl<F> ReviewItemGetter for F where F: FnMut(&Vec<FlowStorageObject>) -> Vec<Display> + Clone + 'static {
+impl<F> ReviewItemGetter for F where F: FnMut(&Vec<State>) -> Vec<Display> + Clone + 'static {
     fn clone_box(&self) -> Box<dyn ReviewItemGetter> {
         Box::new(self.clone())
     }
@@ -227,11 +227,11 @@ impl std::fmt::Debug for dyn ReviewItemGetter {
     }
 }
 
-pub trait SuccessGetter: FnMut(Vec<FlowStorageObject>) -> (Icons, String) + 'static {
+pub trait SuccessGetter: FnMut(Vec<State>) -> (Icons, String) + 'static {
     fn clone_box(&self) -> Box<dyn SuccessGetter>;
 }
 
-impl<F> SuccessGetter for F where F: FnMut(Vec<FlowStorageObject>) -> (Icons, String) + Clone + 'static {
+impl<F> SuccessGetter for F where F: FnMut(Vec<State>) -> (Icons, String) + Clone + 'static {
     fn clone_box(&self) -> Box<dyn SuccessGetter> {
         Box::new(self.clone())
     }
@@ -250,13 +250,13 @@ impl std::fmt::Debug for dyn SuccessGetter {
 }
 
 
-pub trait FormSubmit: FnMut(&mut Context, &Vec<FlowStorageObject>) + 'static {
+pub trait FormSubmit: FnMut(&mut Context, &Vec<State>) + 'static {
     fn clone_box(&self) -> Box<dyn FormSubmit>;
 }
 
 impl PartialEq for dyn FormSubmit{fn eq(&self, _: &Self) -> bool {true}}
 
-impl<F> FormSubmit for F where F: FnMut(&mut Context, &Vec<FlowStorageObject>) + Clone + 'static {
+impl<F> FormSubmit for F where F: FnMut(&mut Context, &Vec<State>) + Clone + 'static {
     fn clone_box(&self) -> Box<dyn FormSubmit> {
         Box::new(self.clone())
     }

@@ -201,7 +201,7 @@ impl Flow{
 }
 
 #[derive(Debug, Clone)]
-pub enum FlowStorageObject {
+pub enum State {
     Text(String),
     Enumerator(usize),
     Number(String),
@@ -210,7 +210,7 @@ pub enum FlowStorageObject {
 }
 
 #[derive(Debug, Component, Clone)]
-pub struct FlowWrapper(Stack, PelicanFlow, #[skip] Vec<FlowStorageObject>);
+pub struct FlowWrapper(Stack, PelicanFlow, #[skip] Vec<State>);
 impl OnEvent for FlowWrapper {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {        
         if event.downcast_ref::<TickEvent>().is_some() {

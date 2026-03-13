@@ -13,7 +13,7 @@ use pelican_ui::components::SearchBar;
 
 use std::sync::Arc;
 
-use crate::flow::{Flow, FlowStorageObject};
+use crate::flow::{Flow, State};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Input {
@@ -68,17 +68,17 @@ impl Input {
     }
 
     #[allow(clippy::borrowed_box)]
-    pub fn store_in(child: &Box<dyn Drawable>, state: &mut Vec<FlowStorageObject>) {
+    pub fn store_in(child: &Box<dyn Drawable>, state: &mut Vec<State>) {
         if let Some(input) = child.downcast_ref::<TextInput>() {
-            state.push(FlowStorageObject::Text(input.value()));
+            state.push(State::Text(input.value()));
         } else if let Some(selector) = child.downcast_ref::<RadioSelector>() {
-            state.push(FlowStorageObject::Enumerator(selector.value()));
+            state.push(State::Enumerator(selector.value()));
         } else if let Some(input) = child.downcast_ref::<NumericalInput>() {
-            state.push(FlowStorageObject::Number(input.value()));
+            state.push(State::Number(input.value()));
         } else if let Some(avatar) = child.downcast_ref::<Avatar>() {
-            state.push(FlowStorageObject::Avatar(avatar.content.clone()))
+            state.push(State::Avatar(avatar.content.clone()))
         } else if let Some(searchbar) = child.downcast_ref::<SearchBar>() {
-            state.push(FlowStorageObject::Search(searchbar.results()))
+            state.push(State::Search(searchbar.results()))
         }
     }
 }

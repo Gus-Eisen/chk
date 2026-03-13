@@ -9,7 +9,7 @@ pub use state::*;
 use chk::{
     RootInfo, FormItem, NumberVariant, Flow, Bumper, ChkTheme, AvatarIconStyle,
     Display, Offset, Context, Screen, PageType, PageBuilder, Icons, AvatarContent,
-    Color, Theme, Form, Root, FlowStorageObject, Review, Success, Message, Profile, FormSubmit,
+    Color, Theme, Form, Root, State, Review, Success, Message, Profile, FormSubmit,
 };
 
 use chk::items::{ListItem, Action, TableItem};
@@ -21,8 +21,8 @@ impl chk::App for Orange {
     fn roots(&self, ctx: &mut Context, theme: &Theme) -> Vec<RootInfo> {
         vec![
             RootInfo::icon(ctx, theme, Icons::Wallet, "Wallet", BitcoinHome::new(theme)),
-            RootInfo::icon(ctx, theme, Icons::Messages, "Messages", MessagesHome::new(theme)),
-            RootInfo::avatar(ctx, theme, AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary), "Profile", MessagesHome::new(theme))
+            // RootInfo::icon(ctx, theme, Icons::Messages, "Messages", MessagesHome::new(theme)),
+            // RootInfo::avatar(ctx, theme, AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary), "Profile", MessagesHome::new(theme))
         ]
     }
 
@@ -88,13 +88,13 @@ impl ViewTransaction {
 pub struct SendFlow;
 impl SendFlow {
     pub fn new(theme: &Theme) -> Form {
-        let closure = Box::new(move |_ctx: &mut Context, objects: &Vec<FlowStorageObject>| {println!("Transaction {:?}", objects)}) as Box<dyn FormSubmit>;
+        let closure = Box::new(move |_ctx: &mut Context, objects: &Vec<State>| {println!("Transaction {:?}", objects)}) as Box<dyn FormSubmit>;
 
-        let review = |objects: &Vec<FlowStorageObject>| {
-            let FlowStorageObject::Text(address) = objects[0].clone() else { todo!() };
+        let review = |objects: &Vec<State>| {
+            let State::Text(address) = objects[0].clone() else { todo!() };
             let btc = "0.00001234";
-            let FlowStorageObject::Number(usd) = &objects[1] else { todo!() };
-            let FlowStorageObject::Enumerator(priority) = &objects[2] else { todo!() };
+            let State::Number(usd) = &objects[1] else { todo!() };
+            let State::Enumerator(priority) = &objects[2] else { todo!() };
             let fee = "$0.38";
             let total = "$12.30";
 
@@ -113,14 +113,14 @@ impl SendFlow {
             ]
         };
 
-        let success = |objects: Vec<FlowStorageObject>| {
-            let amount = if let FlowStorageObject::Number(x) = &objects[1] {x} else {"$0.00"};
+        let success = |objects: Vec<State>| {
+            let amount = if let State::Number(x) = &objects[1] {x} else {"$0.00"};
             (Icons::Bitcoin, format!("You sent {}", amount))
         };
         
         Form::new(theme, vec![
-            FormItem::text("Bitcoin address"),
-            FormItem::number("Bitcoin amount", NumberVariant::Currency), // change to NumberVariant::Currency
+            FormItem::text("Bitcoin address"), //, |a: String| Address::is_valid_address(a)),
+            FormItem::number("Bitcoin amount", NumberVariant::Currency), //, |v: f32| Wallet::contains_amount(v)), // change to NumberVariant::Currency
             FormItem::enumerator("Transaction speed", vec![
                 ("Standard", "Arrives in ~2 hours\n$0.18 bitcoin network fee"),
                 ("Priority", "Arrives in ~30 minutes\n$0.32 bitcoin network fee"),
@@ -128,8 +128,6 @@ impl SendFlow {
         ], Some(Review::new("Confirm send", review)), Some(Success::new("Bitcoin sent", success)), closure)
     }
 }
-
-// either review/success or 
 
 #[derive(Debug, Clone)]
 pub struct MessagesHome;
@@ -141,8 +139,6 @@ impl MessagesHome {
         let items = vec![ListItem::avatar(message.author.avatar(), &message.author.name, &message.message, None, Some(Flow::new(chat)))];
 
         let new_message = NewMessageFlow::new(theme);
-        // let receive = vec![Screen::new_builder(builder, Receive::new())];
-
         Root::new("Messages",
             vec![Display::list(None, items, None)],
             None, ("New Message".into(), Flow::from_form(new_message)), None,
@@ -154,9 +150,8 @@ impl MessagesHome {
 pub struct NewMessageFlow;
 impl NewMessageFlow {
     pub fn new(theme: &Theme) -> Form {
-        let closure = Box::new(move |_ctx: &mut Context, objects: &Vec<FlowStorageObject>| {
+        let closure = Box::new(move |_ctx: &mut Context, objects: &Vec<State>| {
             println!("New Message {:?}", objects);
-            // navigate to the next flow here.
         }) as Box<dyn FormSubmit>;
 
         let items = Profile::more_tests().into_iter().map(|profile| ListItem::avatar(profile.avatar(), &profile.name, "did address here", None, None)).collect::<Vec<_>>();
