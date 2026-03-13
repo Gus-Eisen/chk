@@ -63,3 +63,9 @@ Because CHK operates at the application-description layer, it can support multip
 Example applications demonstrating CHK are included in the repository. 
 
 Developers are encouraged to explore these examples to understand how CHK structures applications and generates interfaces automatically.
+
+## Discord
+
+https://discord.gg/53ERRpS4S4
+
+Join the Discord server to ask questions, discuss development, or share projects.
