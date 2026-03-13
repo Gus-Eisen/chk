@@ -1,8 +1,4 @@
 
-use std::sync::Arc;
-use crate::state::image::RgbaImage;
-use chk::image;
-
 pub struct Address;
 impl Address {
     pub fn generate() -> String { "bcp1ceax843sTOhuad2lahteau29uxxTHoxalo".to_string() }
